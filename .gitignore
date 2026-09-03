@@ -1,0 +1,11 @@
+# Datos descargados: ignorar todo data/ (solo el de la raíz) salvo el marcador
+/data/*
+!/data/.gitkeep
+
+# Entorno virtual
+.venv/
+
+# Cachés de Python y pytest
+__pycache__/
+*.pyc
+.pytest_cache/
