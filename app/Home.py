@@ -22,7 +22,7 @@ st.subheader("Páginas")
 st.markdown(
     """
     - **Datos** — descargar índices y precio, guardar vintages y graficar.
-    - **Entrenar** — ajustar modelos SARIMAX y baselines *(próximas sesiones)*.
+    - **Entrenar** — ajustar SARIMAX, mover parámetros y ver el resultado.
     - **Backtest** — evaluación de origen móvil *(próximas sesiones)*.
     - **Pronósticos** — registro y verificación de pronósticos *(próximas sesiones)*.
     """

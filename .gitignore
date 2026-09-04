@@ -2,6 +2,9 @@
 /data/*
 !/data/.gitkeep
 
+# Configuración activa del modelo (estado de ejecución, no código)
+/config/
+
 # Entorno virtual
 .venv/
 

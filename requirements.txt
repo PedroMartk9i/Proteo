@@ -6,3 +6,5 @@ plotly
 streamlit
 pytest
 pydataxm
+statsmodels
+scipy

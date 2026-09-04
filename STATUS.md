@@ -1,64 +1,75 @@
 # STATUS de Proteo
 
-Última sesión: 2026-09-03. Fase 2 — adaptadores RONI y XM, página Datos completa.
+Última sesión: 2026-09-03. Fase 3 — dataset de modelado, modelos base y
+página Entrenar.
 
 ## Funciona
 
-- Fase 1 completa (ver commit v0.1): schema, vintages, adaptador nino34,
-  portada y página Datos con Niño 3.4.
-- `proteo/data/roni.py`: mismo patrón que nino34. `parse()` mapea cada
-  temporada a su mes central (DJF→01 … NDJ→12) con el año de la fila.
-- `proteo/data/xm.py`: `fetch_raw(start, end)` descarga PrecBolsNaci por
-  tramos anuales con pydataxm (import perezoso dentro de la función);
-  `aggregate_monthly()` (pura) = promedio simple de todas las horas del mes.
-  Reproduce `examples/promedio_mensual.csv`: 320/320 meses, diff máx 2.3e-13.
-- Tests en verde (`pytest -q`: 11 passed). Sin red: fixtures inline de
-  CLAUDE.md, año sintético de 12 temporadas para RONI, y el par
-  crudo→promedio de examples/ para XM (tol 1e-6).
-- Página Datos: tres botones activos + "Descargar todo" con resumen,
-  tabla de vintages por índice, gráfica de dos ejes (Niño 3.4 y RONI a la
-  izquierda con umbrales ±0.5, precio XM a la derecha) y slider de rango
-  de fechas.
-- Descargas reales verificadas 2026-09-03, vintages guardados en
-  `data/raw/` y `data/processed/` para los tres índices:
-  - nino34: 918 filas, último junio 2026 = 1.44.
-  - roni: 919 filas, último julio 2026 (JJA) = 1.36; junio (MJJ) = 0.97.
-  - xm_precio_bolsa: 320 filas, último agosto 2026 = 945.00; enero 2000
-    reproduce la verdad de examples/ exacto.
+- Fases 1 y 2 completas (v0.1, v0.2): contrato de datos, vintages, los
+  tres adaptadores y la página Datos con gráfica de dos ejes.
+- `proteo/dataset.py` (funciones puras): `build_dataset` (series al
+  calendario mensual "MS" completo, rezago POR CALENDARIO con shift sobre
+  el índice, término cuadrático opcional, log opcional, recorte y dropna),
+  `inverse_transform`, y `future_exog` con persistencia y columna
+  `assumed` (con lag=2, pasos 1-2 observados y 3+ supuestos).
+- `proteo/models/`: `base.Model` (fit/forecast/fitted/summary),
+  `naive.Naive` y `naive.SeasonalNaive` con intervalos de camino
+  aleatorio, `sarimax.SARIMAXModel` (statsmodels, enforce_* en False,
+  summary con coeficientes/aic/bic/n_obs/ljung_box_p a 12 rezagos),
+  `MODELS` en `__init__` y `presets.PAPER`.
+- Tests en verde (`pytest -q`: 24 passed): rezago por calendario
+  sobrevive a un mes borrado, cuadrático, log ida y vuelta 1e-9,
+  future_exog 2+4, naives, AR(1) recupera phi (0.55-0.85), exógena
+  sintética recupera beta=2 con p<0.01.
+- Página Entrenar: barra lateral completa (vintages, rango, objetivo
+  nivel/log, exógena con rezago 0-6 y cuadrático, órdenes, h, confianza),
+  botón preset del paper, métricas AIC/BIC/Ljung-Box/n_obs, tabla de
+  coeficientes con exógena resaltada, gráfica observado/ajustado/
+  pronóstico con banda y línea de fin de entrenamiento, panel de la
+  exógena con supuestos en naranja, advertencia de persistencia cuando
+  h > lag, guardado de config/active_model.json y descarga CSV.
+  st.cache_data: volver a parámetros ya calculados no reentrena
+  (verificado: 0.5s primer entrenamiento, 0.1s cacheado).
+- Verificación del paper con datos reales (vintage 2026-09-03, rango
+  2000-01 → 2026-07, n=319): RONI rezago 2 positivo y significativo.
+  En nivel: beta=85.71, p=1.1e-06. En log: beta=0.286, p=9.0e-06 (la
+  referencia beta≈0.25 del paper corresponde a la escala log).
+  Ljung-Box p=0.40 (sin autocorrelación residual).
 
 ## Falta
 
-- Modelos: `base.py`, `naive.py` (naive y estacional 12), `sarimax.py`
-  (statsmodels, aún no está en requirements.txt — avisar al agregarlo).
-- Backtest de origen móvil, métricas por horizonte, Diebold-Mariano.
-- Registro de pronósticos (`forecasts/registry.py`) y páginas 2, 3 y 4.
+- Backtest de origen móvil, métricas por horizonte (MAE/RMSE/MAPE),
+  Diebold-Mariano y página 3_Backtest.
+- Registro de pronósticos (`forecasts/registry.py`), verificación contra
+  lo observado y página 4_Pronosticos (leerá config/active_model.json).
 
 ## Siguiente prompt
 
-Fase 3, modelos: `proteo/models/base.py` (interfaz `fit(y, X)` /
-`forecast(h, X_future)` → DataFrame[date, mean, lower, upper]),
-`naive.py` con los dos baselines, `sarimax.py` con statsmodels
-(agregar statsmodels a requirements.txt) y la configuración de referencia
-SARIMAX(1,1,1)(1,0,0)12 con RONI rezagado 2 meses como exógena. Tests con
-series sintéticas. Página 2_Entrenar con selectores de parámetros.
+Fase 4, backtest: `proteo/backtest/rolling_origin.py` (entrenar hasta t,
+pronosticar t+1..t+h, avanzar un mes, repetir), `metrics.py` (MAE, RMSE,
+MAPE por horizonte; sin MAPE si la serie cruza cero), `dm_test.py`
+(Diebold-Mariano) y página 3_Backtest comparando SARIMAX contra los dos
+naive con los vintages correctos por fecha de origen.
 
 ## Decisiones tomadas
 
-- Fase 1: crudo Niño 3.4 = `sstoi.indices_…txt` (última columna), formateado =
-  `Data-8-28.csv` (`nino34_anom`). `parse()` fuerza `datetime64[ns]`.
-  `.gitignore` ancla `/data/*` a la raíz para no ignorar `proteo/data/`.
-- pydataxm agregado a requirements.txt (lo exige el adaptador XM). `ReadDB`
-  se importa de `pydataxm.pydataxm` (no del paquete raíz), y solo dentro de
-  `fetch_raw` para que los tests no dependan del paquete.
-- El crudo de XM en examples/ trae columnas `Daily Average` y
-  `Monthly Average` precalculadas que pydataxm NO devuelve; el adaptador
-  las ignora y calcula solo desde `Values_Hour01…24`.
-- `promedio_mensual.csv` usa fechas MM/DD/YYYY; agosto 2026 difiere de la
-  descarga de hoy (933.07 vs 945.00) porque el archivo se cortó el 28 de
-  agosto con el mes incompleto. No es un error del adaptador.
-- NOAA revisó RONI hacia atrás: CLAUDE.md documenta MJJ 2026 = 0.98
-  (verificado 2026-09-03 en la redacción) pero el archivo de hoy trae 0.97.
-  Confirmación práctica del porqué de los vintages. El fixture inline de
-  los tests sigue usando 0.98 de CLAUDE.md (parse es puro, no importa).
-- Deprecación de Streamlit: `st.plotly_chart(..., width="stretch")` en vez
-  de `use_container_width=True`.
+- Fases 1-2: ver historial de STATUS en git (v0.1, v0.2).
+- statsmodels y scipy agregados a requirements.txt (los exigen SARIMAX,
+  Ljung-Box y los cuantiles normales de los naive).
+- El rezago es siempre por calendario: la serie se reindexa al calendario
+  mensual completo antes de shift, así un mes faltante queda NaN y no
+  corre el rezago (test explícito con mes borrado).
+- v1: el RONI futuro NO se pronostica; persistencia del último observado,
+  documentado en future_exog y advertido en la interfaz.
+- `future_exog` acepta `add_squared` (extra sobre el spec) para que
+  X_future case con las columnas de build_dataset.
+- La página Entrenar muestra todo en NIVEL aunque se entrene en log
+  (inverse_transform antes de graficar).
+- config/active_model.json está en .gitignore: es estado de ejecución,
+  no código. La página Pronósticos debe tolerar que no exista.
+- Controles con clave usan defaults vía session_state.setdefault y
+  widgets sin valor propio (evita el warning default/estado de Streamlit
+  y permite que el preset del paper escriba session_state).
+- Paleta de guia_diseno_figuras.md aplicada a Plotly: observado #22303f,
+  SARIMAX #1d4ed8, banda alfa 0.15, supuestos #c2410c, umbrales
+  #d94a3d/#2f6fb0.
