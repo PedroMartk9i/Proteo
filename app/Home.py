@@ -23,7 +23,7 @@ st.markdown(
     """
     - **Datos** — descargar índices y precio, guardar vintages y graficar.
     - **Entrenar** — ajustar SARIMAX, mover parámetros y ver el resultado.
-    - **Backtest** — evaluación de origen móvil *(próximas sesiones)*.
+    - **Backtest** — origen móvil, métricas por horizonte y Diebold-Mariano.
     - **Pronósticos** — registro y verificación de pronósticos *(próximas sesiones)*.
     """
 )
