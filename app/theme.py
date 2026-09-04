@@ -9,10 +9,14 @@ Ningún color literal vive fuera de este módulo.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
+
+_STATIC = Path(__file__).resolve().parent / "static"
 
 # --- Tokens (mismos nombres que en docs/style_tile.html) --------------------
 PALETTE = {
@@ -48,6 +52,30 @@ _RADIUS = "4px" if BRUTAL_ACCENT else "6px"
 _GRID = "rgba(98,91,83,.25)"  # tinta al 25 %
 
 PLOTLY_CONFIG = {"displayModeBar": False}
+
+
+def page_setup(title: str) -> None:
+    """Primera llamada de cada página: configuración, CSS, template
+    Plotly y marca en la barra lateral, todo en un solo lugar."""
+    st.set_page_config(
+        page_title=f"{title} | Proteo",
+        page_icon=str(_STATIC / "favicon_32.png"),
+        layout="wide",
+    )
+    inject_css()
+    plotly_template()
+    # st.logo existe desde Streamlit 1.35; se comprueba por capacidad,
+    # no por número de versión.
+    if hasattr(st, "logo"):
+        st.logo(
+            str(_STATIC / "logo.svg"),
+            icon_image=str(_STATIC / "favicon_64.png"),
+        )
+    else:
+        from app import components
+
+        with st.sidebar:
+            components.brand_lockup(height=32)
 
 
 def inject_css() -> None:

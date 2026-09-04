@@ -21,9 +21,7 @@ from proteo.models.presets import PAPER
 from proteo.models.sarimax import SARIMAXModel
 from proteo.store import vintages
 
-st.set_page_config(page_title="Entrenar · Proteo", layout="wide")
-theme.inject_css()
-theme.plotly_template()
+theme.page_setup("Entrenar")
 
 st.title("Entrenar")
 st.markdown(

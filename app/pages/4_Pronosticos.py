@@ -22,9 +22,7 @@ from proteo.forecasts.seasons import next_season
 from proteo.models.sarimax import SARIMAXModel
 from proteo.store import vintages
 
-st.set_page_config(page_title="Pronósticos · Proteo", layout="wide")
-theme.inject_css()
-theme.plotly_template()
+theme.page_setup("Pronósticos")
 
 st.title("Pronósticos")
 st.markdown(
@@ -351,6 +349,8 @@ else:
         assumed_from = rows.loc[rows["assumed_exog"], "horizon"].min()
 
         lines = [
+            "![Proteo](../../docs/img/logo_papel.svg)",
+            "",
             f"# Boletín Proteo — pronóstico {season}",
             "",
             f"- **Emitido:** {fcfg['issued_at']}",

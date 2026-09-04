@@ -1,4 +1,8 @@
-# Proteo
+<p align="center">
+  <img src="docs/img/logo_papel.svg" width="220" alt="Proteo">
+</p>
+
+<p align="center"><em>ENSO y precio de bolsa en Colombia, con pronósticos que se verifican.</em></p>
 
 Proteo es un estudio visual de la relación entre el ENSO y el precio de
 bolsa de la energía en Colombia: descarga con un clic los índices Niño 3.4
@@ -12,7 +16,7 @@ reproducir, auditar o extender el análisis sin pelear con scripts sueltos.
 
 ## Capturas
 
-![Portada](docs/img/home.png)
+![Inicio](docs/img/inicio.png)
 
 ![Datos](docs/img/datos.png)
 

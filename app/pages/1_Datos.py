@@ -15,9 +15,7 @@ from app.theme import PALETTE, PLOTLY_CONFIG
 from proteo.data import nino34, roni, xm
 from proteo.store import vintages
 
-st.set_page_config(page_title="Datos · Proteo", layout="wide")
-theme.inject_css()
-theme.plotly_template()
+theme.page_setup("Datos")
 
 st.title("Datos")
 st.markdown(

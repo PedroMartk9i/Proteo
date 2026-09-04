@@ -6,11 +6,45 @@ estos componentes (las clases ``pt-*`` viven en ese CSS).
 
 from __future__ import annotations
 
+import re
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
-from app.theme import PALETTE
+from app.theme import PALETTE, STACK_MONO
+
+STATIC = Path(__file__).resolve().parent / "static"
+
+
+def brand_lockup(height: int = 40, wordmark: bool = True) -> None:
+    """Marca de Proteo inline (SVG nítido a cualquier zoom) con el
+    wordmark en mono a la derecha, alineado a la línea base.
+
+    El SVG se inserta inline y no con st.image para que escale nítido y
+    lleve siempre el color de tinta del sistema: cualquier fill que
+    traiga el archivo se reemplaza por PALETTE["linea"] AL LEERLO (el
+    archivo no se edita). El bloque <metadata> se descarta para no
+    inflar el HTML.
+    """
+    svg = (STATIC / "logo.svg").read_text(encoding="utf-8")
+    svg = re.sub(r"<metadata>.*?</metadata>", "", svg, flags=re.DOTALL)
+    svg = re.sub(r'fill="#[0-9A-Fa-f]{3,8}"', f'fill="{PALETTE["linea"]}"', svg)
+    svg = svg.replace("<svg ", f'<svg height="{height}" ', 1)
+
+    gap = round(height * 0.3)
+    font_size = round(height * 0.45)
+    wordmark_html = (
+        f'<span style="font-family:{STACK_MONO};font-weight:500;'
+        f'font-size:{font_size}px;line-height:1;'
+        f'color:{PALETTE["linea"]}">Proteo</span>'
+        if wordmark else ""
+    )
+    st.markdown(
+        f'<div style="display:flex;align-items:flex-end;gap:{gap}px">'
+        f"{svg}{wordmark_html}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def dot(color_key: str) -> str:
@@ -74,17 +108,6 @@ def data_header(name: str, index: str, vintage: date | None) -> None:
     st.markdown(
         f'<div class="pt-datahead"><span class="pt-name">{name}</span>'
         f"{led(vintage)}{vintage_stamp(index, vintage)}</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def appbar(subtitle: str | None = None, vintage: date | None = None) -> None:
-    """Barra superior: wordmark Proteo en mono, LED y sello del vintage."""
-    extra = f'<span class="pt-stamp">{subtitle}</span>' if subtitle else ""
-    stamp = vintage_stamp("más reciente", vintage) if vintage else extra
-    st.markdown(
-        f'<div class="pt-appbar"><span class="pt-wordmark">Proteo</span>'
-        f"{led(vintage)}{stamp}</div>",
         unsafe_allow_html=True,
     )
 
