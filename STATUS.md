@@ -1,67 +1,72 @@
-# STATUS de Proteo
+# STATUS de Proteo — v1.0
 
-Última sesión: 2026-09-03. Fase 5 — emisión por temporada, registro
-inmutable, verificación y boletín. LAS CINCO PÁGINAS ESTÁN COMPLETAS.
+Última sesión: 2026-09-03. Empaquetado v1.0: arranque con doble clic,
+ventana propia opcional, README completo y limpieza final.
 
-## Funciona
+## Qué hace (v1.0)
 
-- Fases 1-4 completas (v0.1-v0.4): datos + vintages, dataset, modelos,
-  página Entrenar, backtest con benchmark reproducido.
-- `proteo/forecasts/seasons.py`: temporadas CPC con año del mes central
-  (NDJ 2026 = nov'26-ene'27). `next_season`: la temporada objetivo
-  empieza 2 meses después del último dato (el mes siguiente es paso
-  intermedio). Último dato agosto 2026 → OND 2026, como el spec.
-- `proteo/forecasts/registry.py`: `issue` (registry.parquet + JSON por
-  forecast_id YYYYMMDD-modelo-NN), `verify` (INMUTABLE: una fila
-  verificada no se toca aunque llegue un valor revisado), `pending`,
-  `scorecard`, `load`, `history`, `load_config`. Todo con `root` para
-  tests con tmp_path.
-- Página Pronósticos: cabecera con config activa (remite a Entrenar si
-  falta), preparar → tabla y gráfica con pasos supuestos marcados →
-  notas → confirmar y registrar; verificación contra el vintage más
-  reciente de XM con mensaje claro cuando no hay nada que verificar;
-  historial con gráfica de segmentos coloreados por resultado;
-  scorecard; boletín markdown por temporada.
-- Página Datos: botón "Exportar CSV" por índice (utf-8-sig para Excel).
-- Tests en verde (`pytest -q`: 46 passed; 9 nuevos de seasons/registry
-  + 1 de regresión del bug de rezago).
-- PRIMER PRONÓSTICO REAL EMITIDO: 20260903-sarimax-01, temporada
-  OND 2026, 6 pasos (sep'26-feb'27), vintages 2026-09-03, notas, con
-  boletín en data/forecasts/boletin_OND_2026.md. "Verificar pendientes"
-  responde correctamente que sep'26 aún no existe en XM.
+- **Datos**: descarga con un clic de Niño 3.4 y RONI (NOAA/CPC) y del
+  precio de bolsa nacional (XM vía pydataxm). Cada descarga es un
+  vintage fechado que nunca se sobrescribe. Exportar CSV por índice.
+- **Entrenar**: SARIMAX con exógena opcional (RONI o Niño 3.4), rezago
+  configurable, término cuadrático, objetivo nivel/log, preset del
+  paper, diagnósticos (AIC/BIC/Ljung-Box), configuración activa en JSON.
+- **Backtest**: origen móvil contra naive y naive estacional, métricas
+  por horizonte, mejora por incluir RONI, Diebold-Mariano con HLN,
+  desglose por fase ENSO, cobertura, corridas guardadas y recargables.
+  Benchmark de agosto 2026 reproducido (ver historial v0.4).
+- **Pronósticos**: emisión por temporada CPC con registro inmutable
+  (registry.parquet + JSON por emisión), verificación contra lo
+  observado, scorecard y boletín markdown. Primer pronóstico real:
+  20260903-sarimax-01, OND 2026.
+- **Arranque**: `run.bat` (navegador) y `run_desktop.bat` (ventana
+  nativa pywebview 1400×900 que al cerrarse mata el servidor). Tema y
+  puerto fijos en `.streamlit/config.toml`. README con instalación en
+  tres pasos, flujo de uso, cómo agregar fuentes, citas y créditos.
+- Calidad: 46 tests en verde con `filterwarnings = error` (cero
+  warnings), `compileall` limpio, requirements con versiones fijadas.
 
-## Falta
+## Qué no hace todavía (límites conocidos)
 
-- Verificar el pronóstico emitido cuando XM publique septiembre 2026
-  (descargar XM en Datos → Pronósticos → "Verificar pendientes").
-- Ideas de mejora, no comprometidas: selector de métrica (MAE/RMSE) en
-  la tabla de mejora del backtest, backtest con vintages históricos
-  cuando se acumulen, pronóstico del RONI en vez de persistencia (v2).
+- El RONI futuro NO se pronostica: persistencia del último valor
+  observado a partir del paso `lag+1`. La interfaz y el boletín lo
+  advierten.
+- El backtest usa un solo vintage (el más reciente) para todas las
+  fechas; el backtest "como si fuera esa fecha" llegará cuando la app
+  acumule vintages históricos.
+- La app es local (navegador o ventana propia); no hay despliegue web
+  ni multiusuario.
+- Créditos del README: falta completar grupo de investigación y
+  coautores del trabajo de origen (marcados "por completar").
+- Capturas del README: marcadores listos en docs/img/, las pone Pedro.
 
-## Siguiente prompt
+## Pendiente operativo
 
-Mantenimiento mensual: descargar los tres índices (vintage nuevo),
-verificar pendientes, emitir el pronóstico de la siguiente temporada y
-exportar el boletín. O bien: mejoras de la lista de arriba.
+- Cuando XM publique septiembre 2026: Datos → descargar XM →
+  Pronósticos → "Verificar pendientes". Primera verificación real.
 
-## Decisiones tomadas
+## Después de v1.0 (ideas, en orden de valor)
 
-- Fases 1-4: ver historial de STATUS en git (v0.1-v0.4).
-- BUG CORREGIDO en dataset.py (detectado y avisado en esta sesión):
-  shift(lag) posicional recortaba la cobertura de X al calendario propio
-  de la exógena, perdiendo los últimos `lag` meses del precio cuyo valor
-  rezagado SÍ estaba observado (entrenaba hasta julio en vez de agosto y
-  la temporada salía SON en vez de OND). Ahora shift(lag, freq="MS")
-  desplaza el índice por calendario. Test de regresión incluido. El
-  coeficiente del paper apenas se mueve: 75.68 (p=2.7e-05) con n=320.
-- Convención de temporada: etiqueta con el año del MES CENTRAL (igual
-  que RONI en CLAUDE.md). El boletín marca cada paso como intermedio /
-  objetivo / extendido.
-- Inmutabilidad del registro: verify solo toca filas con verified_at
-  NaN; el pronóstico se juzga contra el PRIMER valor observado, no
-  contra revisiones posteriores.
-- inside_interval se guarda como float (0/1/NaN) por compatibilidad de
-  parquet; issued_at/verified_at como texto ISO.
-- El registro real (data/forecasts/) queda fuera de git por el
-  gitignore de /data/. El respaldo es responsabilidad del entorno
-  (OneDrive lo cubre en esta máquina).
+1. RONI futuro con el pronóstico oficial de CPC en vez de persistencia.
+2. Backtest "como si fuera esa fecha" con vintages históricos.
+3. Segundo modelo con machine learning (segundo paper) bajo la misma
+   interfaz Model, comparable en el mismo backtest.
+4. Caudales o aportes hídricos de XM como exógena adicional.
+
+## Decisiones tomadas (v1.0)
+
+- Fases 1-5: ver historial de STATUS en git (v0.1-v0.5).
+- pywebview agregado a requirements.txt (ventana nativa opcional).
+- requirements.txt fijado a las versiones instaladas y probadas (pip
+  freeze filtrado a dependencias directas).
+- `pytest.ini` con `filterwarnings = error`: la suite está limpia hoy y
+  cualquier warning futuro debe corregirse o justificarse por escrito.
+- run.bat abre el navegador solo cuando el puerto 8765 responde (un
+  vigilante PowerShell en segundo plano); el servidor corre en primer
+  plano para que cerrar la ventana lo detenga y los errores se lean
+  (pause al fallar).
+- desktop.py mata el árbol completo del subproceso con taskkill /T /F:
+  verificado que no queda nada escuchando el 8765 al cerrar la ventana.
+- Tema de config.toml con la paleta de guia_diseno_figuras.md. El Niño
+  conserva el cálido #d94a3d de la guía ("rojo para cálido... no se
+  invierte por ningún motivo"), que cumple el rol del "naranja" pedido.

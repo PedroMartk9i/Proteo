@@ -1,0 +1,23 @@
+# Configuración de Streamlit para Proteo.
+#
+# La paleta sigue guia_diseno_figuras.md y estilo.py, la misma que usan
+# las gráficas Plotly de las páginas:
+#   - azul marino (#22303f) para la serie de precio y el texto,
+#   - azul cobalto (#1d4ed8) para el modelo/acento,
+#   - cálido (#d94a3d) para El Niño, azul (#2f6fb0) para La Niña,
+#   - gris (#8a949e) para lo neutral.
+
+[server]
+port = 8765
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#1d4ed8"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f5f6"
+textColor = "#22303f"
+font = "sans serif"
