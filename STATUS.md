@@ -1,72 +1,71 @@
-# STATUS de Proteo — v1.0
+# STATUS de Proteo — v1.1
 
-Última sesión: 2026-09-03. Empaquetado v1.0: arranque con doble clic,
-ventana propia opcional, README completo y limpieza final.
+Última sesión: 2026-09-03. Sistema de diseño "caja beige" (variante B)
+aplicado a Inicio y Datos.
 
-## Qué hace (v1.0)
+## Qué hace (v1.1)
 
-- **Datos**: descarga con un clic de Niño 3.4 y RONI (NOAA/CPC) y del
-  precio de bolsa nacional (XM vía pydataxm). Cada descarga es un
-  vintage fechado que nunca se sobrescribe. Exportar CSV por índice.
-- **Entrenar**: SARIMAX con exógena opcional (RONI o Niño 3.4), rezago
-  configurable, término cuadrático, objetivo nivel/log, preset del
-  paper, diagnósticos (AIC/BIC/Ljung-Box), configuración activa en JSON.
-- **Backtest**: origen móvil contra naive y naive estacional, métricas
-  por horizonte, mejora por incluir RONI, Diebold-Mariano con HLN,
-  desglose por fase ENSO, cobertura, corridas guardadas y recargables.
-  Benchmark de agosto 2026 reproducido (ver historial v0.4).
-- **Pronósticos**: emisión por temporada CPC con registro inmutable
-  (registry.parquet + JSON por emisión), verificación contra lo
-  observado, scorecard y boletín markdown. Primer pronóstico real:
-  20260903-sarimax-01, OND 2026.
-- **Arranque**: `run.bat` (navegador) y `run_desktop.bat` (ventana
-  nativa pywebview 1400×900 que al cerrarse mata el servidor). Tema y
-  puerto fijos en `.streamlit/config.toml`. README con instalación en
-  tres pasos, flujo de uso, cómo agregar fuentes, citas y créditos.
-- Calidad: 46 tests en verde con `filterwarnings = error` (cero
-  warnings), `compileall` limpio, requirements con versiones fijadas.
+- Todo lo de v1.0 (ver historial): datos con vintages, SARIMAX
+  interactivo, backtest con benchmark reproducido, pronósticos con
+  registro inmutable, arranque con doble clic.
+- Sistema de diseño "caja beige" como código reutilizable:
+  - `app/theme.py`: PALETTE (papel, panel, linea, tinta, nino, nina,
+    bandas), IBM Plex Sans/Mono con fallback del sistema,
+    `BRUTAL_ACCENT = True` (variante B: sombras duras 4px 4px 0 en
+    tinta, radio 4 px, primario que se hunde), `inject_css()`,
+    template Plotly "proteo" como default, `PLOTLY_CONFIG`,
+    `add_enso_bands()` (agrupa meses consecutivos en un rectángulo)
+    y `add_threshold_lines()`.
+  - `app/components.py`: `led` (naranja hoy / teal < 7 días / tinta),
+    `vintage_stamp`, `metric_card`, `data_header`, `appbar`, `section`.
+  - `.streamlit/config.toml`: theming nativo completo de Streamlit 1.63
+    (colores, borderColor, radios 4px, fuentes Plex, dataframe, charts).
+- Inicio: appbar con wordmark mono + LED + sello, frase, tres
+  data_header y enlace a Datos. Sin emojis.
+- Datos: "Descargar todo" único primario; gráfica con template proteo,
+  precio (linea) a la izquierda, Niño 3.4 (nino) y RONI (nina) a la
+  derecha con umbrales y bandas ENSO; tabla de vintages con DateColumn;
+  estados vacíos con la voz del tile ("No hay vintage de RONI todavía.
+  Pulsa Descargar RONI.").
+- Capturas reales de Inicio y Datos en docs/img/ (home.png, datos.png),
+  tomadas de la app corriendo.
+- CLAUDE.md: sección "## Diseño" con las reglas del sistema.
+- 46 tests en verde (el diseño no toca proteo/).
 
-## Qué no hace todavía (límites conocidos)
+## Qué no hace todavía
 
-- El RONI futuro NO se pronostica: persistencia del último valor
-  observado a partir del paso `lag+1`. La interfaz y el boletín lo
-  advierten.
-- El backtest usa un solo vintage (el más reciente) para todas las
-  fechas; el backtest "como si fuera esa fecha" llegará cuando la app
-  acumule vintages históricos.
-- La app es local (navegador o ventana propia); no hay despliegue web
-  ni multiusuario.
-- Créditos del README: falta completar grupo de investigación y
-  coautores del trabajo de origen (marcados "por completar").
-- Capturas del README: marcadores listos en docs/img/, las pone Pedro.
+- Entrenar, Backtest y Pronósticos siguen con el estilo anterior: se
+  migran al sistema en la siguiente sesión (usar theme + components,
+  quitar sus diccionarios COLOR locales y emojis).
+- Límites de v1.0 sin cambio: RONI futuro por persistencia, backtest
+  con un solo vintage, app local.
+- README: faltan capturas de las otras tres páginas (los marcadores ya
+  existen) y completar grupo de investigación y coautores.
 
-## Pendiente operativo
+## Siguiente prompt
 
-- Cuando XM publique septiembre 2026: Datos → descargar XM →
-  Pronósticos → "Verificar pendientes". Primera verificación real.
+Aplicar el sistema "caja beige" a 2_Entrenar, 3_Backtest y
+4_Pronosticos: reemplazar sus diccionarios COLOR por PALETTE, activar
+el template proteo y PLOTLY_CONFIG en todas las gráficas, usar
+add_enso_bands/add_threshold_lines en el panel de exógena, metric_card
+para las métricas, data_header/section/appbar donde aplique, quitar
+emojis de set_page_config, y capturar entrenar.png, backtest.png y
+pronosticos.png para el README.
 
-## Después de v1.0 (ideas, en orden de valor)
+## Decisiones tomadas (v1.1)
 
-1. RONI futuro con el pronóstico oficial de CPC en vez de persistencia.
-2. Backtest "como si fuera esa fecha" con vintages históricos.
-3. Segundo modelo con machine learning (segundo paper) bajo la misma
-   interfaz Model, comparable en el mismo backtest.
-4. Caudales o aportes hídricos de XM como exógena adicional.
-
-## Decisiones tomadas (v1.0)
-
-- Fases 1-5: ver historial de STATUS en git (v0.1-v0.5).
-- pywebview agregado a requirements.txt (ventana nativa opcional).
-- requirements.txt fijado a las versiones instaladas y probadas (pip
-  freeze filtrado a dependencias directas).
-- `pytest.ini` con `filterwarnings = error`: la suite está limpia hoy y
-  cualquier warning futuro debe corregirse o justificarse por escrito.
-- run.bat abre el navegador solo cuando el puerto 8765 responde (un
-  vigilante PowerShell en segundo plano); el servidor corre en primer
-  plano para que cerrar la ventana lo detenga y los errores se lean
-  (pause al fallar).
-- desktop.py mata el árbol completo del subproceso con taskkill /T /F:
-  verificado que no queda nada escuchando el 8765 al cerrar la ventana.
-- Tema de config.toml con la paleta de guia_diseno_figuras.md. El Niño
-  conserva el cálido #d94a3d de la guía ("rojo para cálido... no se
-  invierte por ningún motivo"), que cumple el rol del "naranja" pedido.
+- Variante elegida por Pedro: B (acento brutalista).
+- `inject_css()` se inyecta en CADA ejecución del script, no una vez
+  por sesión como decía el spec: Streamlit vacía el DOM en cada rerun y
+  con la bandera en session_state la página quedaría sin estilo tras el
+  primer clic. La regla de uso es "una llamada por página, en la
+  cabecera". Documentado en el docstring.
+- El eje de índices ENSO pasó al lado derecho (y2) y el precio al
+  izquierdo, como pide la firma de add_threshold_lines(yref="y2").
+- `data_header(name, index, vintage)` lleva nombre visible e índice
+  separados (el índice va en el title del sello).
+- Capturas con Chrome headless vía CDP (scratchpad/shot.py) porque
+  --screenshot con virtual-time-budget no espera el websocket de
+  Streamlit y salía la página vacía.
+- style_tile.html movido de la raíz a docs/style_tile.html (la ruta que
+  usa CLAUDE.md).

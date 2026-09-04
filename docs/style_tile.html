@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proteo, style tile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   TOKENS. Fuente de verdad para app/theme.py. Mismos nombres allí.
+   ------------------------------------------------------------------ */
+:root{
+  --papel:#EFE7D5;        /* fondo general: plástico crema de la caja beige */
+  --panel:#E1D8C3;        /* paneles, barra lateral, cabeceras */
+  --linea:#2B2925;        /* texto, bordes, serie de precio */
+  --tinta:#7A736A;        /* etiquetas, ejes, grilla, sombras (variante B) */
+  --nino:#E8792B;         /* acción primaria, RONI positivo, fase El Niño */
+  --nina:#2F8F8A;         /* RONI negativo, fase La Niña, foco de teclado */
+  --banda:rgba(232,121,43,.18);
+  --banda-nina:rgba(47,143,138,.16);
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --b:2px;                /* grosor de borde único */
+  --r:6px;                /* radio, variante A */
+}
+
+html,body{margin:0;background:var(--papel);color:var(--linea);font-family:var(--sans);line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:28px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.lead{max-width:64ch;color:var(--tinta);margin:0 0 28px;font-size:15px}
+
+.tile{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:28px;align-items:start}
+.variant{border:var(--b) solid var(--linea);border-radius:var(--r);background:var(--papel);overflow:hidden}
+.variant>header{padding:14px 18px;border-bottom:var(--b) solid var(--linea);background:var(--panel);display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.variant>header h2{margin:0;font-size:16px;font-weight:600}
+.variant>header span{font-family:var(--mono);font-size:12px;color:var(--tinta)}
+.body{padding:18px;display:grid;gap:20px}
+h3{font-size:13px;font-weight:600;margin:0 0 8px}
+
+/* barra de la app */
+.appbar{display:flex;align-items:center;gap:10px;padding:10px 12px;border:var(--b) solid var(--linea);border-radius:var(--r);background:var(--panel)}
+.wordmark{font-family:var(--mono);font-weight:500;font-size:18px}
+.led{width:10px;height:10px;border-radius:50%;background:var(--nino);box-shadow:inset 0 0 0 2px rgba(43,41,37,.18);flex:none}
+.led.nina{background:var(--nina)}
+.led.off{background:var(--tinta)}
+.stamp{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--tinta)}
+
+/* botones */
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font-family:var(--sans);font-weight:600;font-size:14px;padding:9px 14px;border:var(--b) solid var(--linea);border-radius:var(--r);background:var(--papel);color:var(--linea);cursor:pointer}
+.btn.primary{background:var(--nino)}
+.btn:focus-visible{outline:3px solid var(--nina);outline-offset:2px}
+
+/* tarjetas de métrica */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card{border:var(--b) solid var(--linea);border-radius:var(--r);padding:10px 12px;background:var(--papel);min-width:0}
+.card .k{font-size:12px;color:var(--tinta)}
+.card .v{font-family:var(--mono);font-size:19px;font-weight:500;margin-top:2px;white-space:nowrap}
+.card .v small{font-size:12px;color:var(--tinta);font-weight:400}
+
+/* control tipo instrumento */
+.control{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;border:var(--b) solid var(--linea);border-radius:var(--r);padding:10px 12px;background:var(--panel)}
+.control label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta)}
+.control .val{font-family:var(--mono);font-weight:500;font-size:14px}
+.track{grid-column:1/-1;height:6px;background:var(--papel);border:var(--b) solid var(--linea);border-radius:3px;position:relative}
+.knob{position:absolute;top:-7px;left:31%;width:16px;height:16px;border-radius:50%;background:var(--nino);border:var(--b) solid var(--linea);box-sizing:border-box}
+
+/* gráfica */
+.chart{border:var(--b) solid var(--linea);border-radius:var(--r);padding:10px 10px 8px;background:var(--papel)}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--tinta);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid var(--linea);vertical-align:middle;margin-right:5px}
+.legend i.dash{border-top-style:dashed;border-color:var(--nino)}
+.legend i.band{height:10px;border:0;background:var(--banda)}
+.legend i.bandn{height:10px;border:0;background:var(--banda-nina)}
+
+/* tabla */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-align:left;padding:6px 8px;border-bottom:var(--b) solid var(--linea);font-weight:500}
+td{padding:7px 8px;border-bottom:1px solid var(--panel);font-family:var(--mono);white-space:nowrap}
+td.txt{font-family:var(--sans);white-space:normal}
+.pos{color:var(--nino);font-weight:500}
+.neg{color:var(--nina);font-weight:500}
+caption{caption-side:bottom;text-align:left;font-size:11px;color:var(--tinta);padding-top:6px}
+
+/* paleta */
+.pal{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:22px}
+.sw{border:var(--b) solid var(--linea);border-radius:var(--r);height:44px;position:relative}
+.sw span{position:absolute;left:0;right:0;bottom:-19px;font-family:var(--mono);font-size:10px;color:var(--tinta);text-align:center}
+
+/* tipografía */
+.type .h{font-size:22px;font-weight:600;margin:0}
+.type p{margin:4px 0 0;color:var(--tinta);font-size:14px;max-width:48ch}
+.type code{font-family:var(--mono);font-size:13px;color:var(--linea)}
+
+.note{font-size:13px;color:var(--tinta);border-top:var(--b) solid var(--linea);padding-top:12px;margin:0;max-width:60ch}
+
+/* ------------------------------------------------------------------
+   VARIANTE B: mismo sistema, sombras duras en tinta suave y radio 4.
+   ------------------------------------------------------------------ */
+.b{--r:4px}
+.b .appbar,.b .btn,.b .card,.b .control,.b .chart{box-shadow:4px 4px 0 var(--tinta)}
+.b .btn.primary{box-shadow:4px 4px 0 var(--linea)}
+.b .btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--tinta)}
+@media (prefers-reduced-motion:no-preference){.b .btn{transition:transform .08s,box-shadow .08s}}
+
+@media (max-width:420px){.cards{grid-template-columns:1fr 1fr}.pal{grid-template-columns:repeat(3,1fr);row-gap:30px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Proteo, sistema de diseño "caja beige"</h1>
+  <p class="lead">Dos variantes del mismo sistema, lado a lado. Comparten paleta, tipografía, bordes de 2 px y componentes. La única diferencia está en las sombras y en el radio de las esquinas. Elige una; el código la activa con un solo interruptor.</p>
+
+  <div class="tile">
+
+    <!-- ============================ VARIANTE A ============================ -->
+    <section class="variant a">
+      <header><h2>Variante A. Caja beige pura</h2><span>plana, sin sombras, radio 6 px</span></header>
+      <div class="body">
+
+        <div class="appbar">
+          <span class="wordmark">Proteo</span>
+          <span class="led" title="vintage de hoy"></span>
+          <span class="stamp">vintage 2026-09-03</span>
+        </div>
+
+        <div class="chart">
+          <svg viewBox="0 0 320 150" role="img" aria-label="Precio de bolsa con bandas ENSO y pronóstico">
+            <rect x="52" y="8" width="62" height="126" fill="var(--banda)"/>
+            <rect x="182" y="8" width="44" height="126" fill="var(--banda-nina)"/>
+            <g stroke="var(--tinta)" stroke-opacity=".28" stroke-width="1">
+              <line x1="8" y1="38" x2="312" y2="38"/><line x1="8" y1="70" x2="312" y2="70"/>
+              <line x1="8" y1="102" x2="312" y2="102"/><line x1="8" y1="134" x2="312" y2="134"/>
+            </g>
+            <polygon points="250,80 270,64 290,60 310,52 310,96 290,94 270,88" fill="var(--banda)"/>
+            <polyline points="10,95 30,88 50,80 70,60 90,40 110,45 130,70 150,85 170,92 190,98 210,90 230,84 250,80" fill="none" stroke="var(--linea)" stroke-width="2" stroke-linejoin="round"/>
+            <polyline points="250,80 270,76 290,78 310,74" fill="none" stroke="var(--nino)" stroke-width="2" stroke-dasharray="5 4"/>
+            <line x1="250" y1="8" x2="250" y2="134" stroke="var(--tinta)" stroke-width="1" stroke-dasharray="3 3"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--tinta)">
+              <text x="10" y="146">2023</text><text x="88" y="146">2024</text><text x="168" y="146">2025</text><text x="248" y="146">2026</text>
+              <text x="12" y="20">COP/kWh</text>
+            </g>
+          </svg>
+          <div class="legend"><span><i></i>observado</span><span><i class="dash"></i>pronóstico</span><span><i class="band"></i>El Niño</span><span><i class="bandn"></i>La Niña</span></div>
+        </div>
+
+        <div class="row">
+          <button class="btn primary">Descargar todo</button>
+          <button class="btn">Descargar RONI</button>
+          <button class="btn">Exportar CSV</button>
+        </div>
+
+        <div class="cards">
+          <div class="card"><div class="k">AIC</div><div class="v">3412.8</div></div>
+          <div class="card"><div class="k">Coeficiente RONI</div><div class="v">+0.25 <small>p&lt;0.001</small></div></div>
+          <div class="card"><div class="k">Ljung-Box</div><div class="v">0.31 <small>p</small></div></div>
+        </div>
+
+        <div class="control">
+          <label>rezago roni</label><span class="val">2 meses</span>
+          <div class="track"><div class="knob"></div></div>
+        </div>
+
+        <table>
+          <thead><tr><th>Modelo</th><th>h</th><th>Mejora</th><th>DM p</th></tr></thead>
+          <tbody>
+            <tr><td class="txt">SARIMAX con RONI</td><td>1</td><td class="pos">+1.0 %</td><td>0.41</td></tr>
+            <tr><td class="txt">SARIMAX con RONI</td><td>6</td><td class="pos">+5.7 %</td><td>0.18</td></tr>
+            <tr><td class="txt">Naive estacional</td><td>6</td><td class="neg">-8.2 %</td><td>0.09</td></tr>
+          </tbody>
+          <caption>valores de muestra</caption>
+        </table>
+
+        <div>
+          <h3>Paleta</h3>
+          <div class="pal">
+            <div class="sw" style="background:var(--papel)"><span>papel EFE7D5</span></div>
+            <div class="sw" style="background:var(--panel)"><span>panel E1D8C3</span></div>
+            <div class="sw" style="background:var(--linea)"><span>línea 2B2925</span></div>
+            <div class="sw" style="background:var(--tinta)"><span>tinta 7A736A</span></div>
+            <div class="sw" style="background:var(--nino)"><span>niño E8792B</span></div>
+            <div class="sw" style="background:var(--nina)"><span>niña 2F8F8A</span></div>
+          </div>
+          <h3>Tipografía</h3>
+          <div class="type">
+            <p class="h">Entrenar</p>
+            <p>IBM Plex Sans para la interfaz. Es la letra heredera de la IBM de la caja beige, con la limpieza de hoy.</p>
+            <p><code>IBM Plex Mono: 2026-06-01 1.44 vintage 2026-09-03</code></p>
+          </div>
+        </div>
+
+        <p class="note">Un solo botón naranja por página. Texto oscuro sobre naranja (contraste 5:1), nunca blanco. Bordes de 2 px marcan contenedores; no hay decoración sin función.</p>
+      </div>
+    </section>
+
+    <!-- ============================ VARIANTE B ============================ -->
+    <section class="variant b">
+      <header><h2>Variante B. Con acento brutalista</h2><span>sombras duras en tinta, radio 4 px</span></header>
+      <div class="body">
+
+        <div class="appbar">
+          <span class="wordmark">Proteo</span>
+          <span class="led" title="vintage de hoy"></span>
+          <span class="stamp">vintage 2026-09-03</span>
+        </div>
+
+        <div class="chart">
+          <svg viewBox="0 0 320 150" role="img" aria-label="Precio de bolsa con bandas ENSO y pronóstico">
+            <rect x="52" y="8" width="62" height="126" fill="var(--banda)"/>
+            <rect x="182" y="8" width="44" height="126" fill="var(--banda-nina)"/>
+            <g stroke="var(--tinta)" stroke-opacity=".28" stroke-width="1">
+              <line x1="8" y1="38" x2="312" y2="38"/><line x1="8" y1="70" x2="312" y2="70"/>
+              <line x1="8" y1="102" x2="312" y2="102"/><line x1="8" y1="134" x2="312" y2="134"/>
+            </g>
+            <polygon points="250,80 270,64 290,60 310,52 310,96 290,94 270,88" fill="var(--banda)"/>
+            <polyline points="10,95 30,88 50,80 70,60 90,40 110,45 130,70 150,85 170,92 190,98 210,90 230,84 250,80" fill="none" stroke="var(--linea)" stroke-width="2" stroke-linejoin="round"/>
+            <polyline points="250,80 270,76 290,78 310,74" fill="none" stroke="var(--nino)" stroke-width="2" stroke-dasharray="5 4"/>
+            <line x1="250" y1="8" x2="250" y2="134" stroke="var(--tinta)" stroke-width="1" stroke-dasharray="3 3"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--tinta)">
+              <text x="10" y="146">2023</text><text x="88" y="146">2024</text><text x="168" y="146">2025</text><text x="248" y="146">2026</text>
+              <text x="12" y="20">COP/kWh</text>
+            </g>
+          </svg>
+          <div class="legend"><span><i></i>observado</span><span><i class="dash"></i>pronóstico</span><span><i class="band"></i>El Niño</span><span><i class="bandn"></i>La Niña</span></div>
+        </div>
+
+        <div class="row">
+          <button class="btn primary">Descargar todo</button>
+          <button class="btn">Descargar RONI</button>
+          <button class="btn">Exportar CSV</button>
+        </div>
+
+        <div class="cards">
+          <div class="card"><div class="k">AIC</div><div class="v">3412.8</div></div>
+          <div class="card"><div class="k">Coeficiente RONI</div><div class="v">+0.25 <small>p&lt;0.001</small></div></div>
+          <div class="card"><div class="k">Ljung-Box</div><div class="v">0.31 <small>p</small></div></div>
+        </div>
+
+        <div class="control">
+          <label>rezago roni</label><span class="val">2 meses</span>
+          <div class="track"><div class="knob"></div></div>
+        </div>
+
+        <table>
+          <thead><tr><th>Modelo</th><th>h</th><th>Mejora</th><th>DM p</th></tr></thead>
+          <tbody>
+            <tr><td class="txt">SARIMAX con RONI</td><td>1</td><td class="pos">+1.0 %</td><td>0.41</td></tr>
+            <tr><td class="txt">SARIMAX con RONI</td><td>6</td><td class="pos">+5.7 %</td><td>0.18</td></tr>
+            <tr><td class="txt">Naive estacional</td><td>6</td><td class="neg">-8.2 %</td><td>0.09</td></tr>
+          </tbody>
+          <caption>valores de muestra</caption>
+        </table>
+
+        <div>
+          <h3>Paleta</h3>
+          <div class="pal">
+            <div class="sw" style="background:var(--papel)"><span>papel EFE7D5</span></div>
+            <div class="sw" style="background:var(--panel)"><span>panel E1D8C3</span></div>
+            <div class="sw" style="background:var(--linea)"><span>línea 2B2925</span></div>
+            <div class="sw" style="background:var(--tinta)"><span>tinta 7A736A</span></div>
+            <div class="sw" style="background:var(--nino)"><span>niño E8792B</span></div>
+            <div class="sw" style="background:var(--nina)"><span>niña 2F8F8A</span></div>
+          </div>
+          <h3>Tipografía</h3>
+          <div class="type">
+            <p class="h">Entrenar</p>
+            <p>Misma tipografía. La variante no cambia la letra, solo el relieve.</p>
+            <p><code>IBM Plex Mono: 2026-06-01 1.44 vintage 2026-09-03</code></p>
+          </div>
+        </div>
+
+        <p class="note">Las sombras son del color tinta, no negras: es neo-brutalismo con el volumen a la mitad. Solo el botón primario lleva sombra oscura. Al pulsar, el botón se hunde 2 px.</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

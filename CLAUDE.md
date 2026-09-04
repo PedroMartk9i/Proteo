@@ -215,3 +215,15 @@ streamlit run app/Home.py
   oficial de NOAA para clasificar ENSO desde febrero de 2026.
 - Regresor exógeno: variable externa (aquí RONI) que entra al modelo para
   explicar la serie objetivo (aquí el precio).
+
+## Diseño
+- Sistema "caja beige". Tokens en app/theme.py; referencia visual en
+  docs/style_tile.html. Variante B activada con BRUTAL_ACCENT.
+- Ninguna gráfica se configura a mano: todas usan el template "proteo" y,
+  cuando hay RONI en pantalla, add_enso_bands.
+- Un solo botón primario (naranja) por página. Números, fechas y vintages
+  siempre en mono.
+- Texto oscuro sobre naranja, nunca blanco. Contraste mínimo 4.5:1.
+- Etiquetas de control en mono mayúsculas pequeñas; títulos en sans,
+  sentence case. Sin emojis en la interfaz.
+- Ningún color literal fuera de app/theme.py.

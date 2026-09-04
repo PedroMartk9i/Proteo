@@ -3,29 +3,46 @@
 import sys
 from pathlib import Path
 
-# Permite importar el paquete ``proteo`` al correr ``streamlit run app/Home.py``.
+# Permite importar ``proteo`` y ``app`` al correr desde la raíz del repo.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import streamlit as st
 
-st.set_page_config(page_title="Proteo", page_icon="🌊", layout="wide")
+from app import components, theme
+from proteo.store import vintages
 
-st.title("🌊 Proteo")
+st.set_page_config(page_title="Proteo", layout="wide")
+theme.inject_css()
+
+INDICES = [
+    ("Niño 3.4", "nino34"),
+    ("RONI", "roni"),
+    ("Precio de bolsa", "xm_precio_bolsa"),
+]
+
+# Barra superior con el vintage más reciente de cualquier índice.
+all_vintages = [
+    v for _, index in INDICES for v in vintages.list_vintages(index)
+]
+latest = max(all_vintages) if all_vintages else None
+components.appbar(vintage=latest)
 
 st.markdown(
-    "Estudio visual de **ENSO** y el **precio de bolsa** en Colombia: descarga "
-    "los índices del Niño y el precio nacional, entrena modelos SARIMAX con "
-    "RONI como regresor exógeno y verifica cada pronóstico contra lo observado."
+    "Estudio visual de la relación entre el ENSO y el precio de bolsa de la "
+    "energía en Colombia: datos con vintages, SARIMAX con RONI como exógena, "
+    "backtest honesto y pronósticos verificados contra lo observado."
 )
 
-st.subheader("Páginas")
+components.section("Datos disponibles")
+cols = st.columns(len(INDICES))
+for col, (name, index) in zip(cols, INDICES):
+    with col:
+        available = vintages.list_vintages(index)
+        components.data_header(name, index, available[-1] if available else None)
+
+st.page_link("pages/1_Datos.py", label="Abrir la página Datos")
+
 st.markdown(
-    """
-    - **Datos** — descargar índices y precio, guardar vintages y graficar.
-    - **Entrenar** — ajustar SARIMAX, mover parámetros y ver el resultado.
-    - **Backtest** — origen móvil, métricas por horizonte y Diebold-Mariano.
-    - **Pronósticos** — emitir por temporada, registrar y verificar contra lo observado.
-    """
+    '<p class="pt-help">Pedro Martínez, UNAB, Bucaramanga.</p>',
+    unsafe_allow_html=True,
 )
-
-st.caption("Autor: Pedro Martínez (UNAB, Bucaramanga).")

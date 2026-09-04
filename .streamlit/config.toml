@@ -1,11 +1,8 @@
 # Configuración de Streamlit para Proteo.
 #
-# La paleta sigue guia_diseno_figuras.md y estilo.py, la misma que usan
-# las gráficas Plotly de las páginas:
-#   - azul marino (#22303f) para la serie de precio y el texto,
-#   - azul cobalto (#1d4ed8) para el modelo/acento,
-#   - cálido (#d94a3d) para El Niño, azul (#2f6fb0) para La Niña,
-#   - gris (#8a949e) para lo neutral.
+# Tema "caja beige", variante B: tokens en app/theme.py y referencia
+# visual en docs/style_tile.html. Lo que el tema nativo no cubre lo
+# cubre theme.inject_css().
 
 [server]
 port = 8765
@@ -16,8 +13,22 @@ gatherUsageStats = false
 
 [theme]
 base = "light"
-primaryColor = "#1d4ed8"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f4f5f6"
-textColor = "#22303f"
-font = "sans serif"
+primaryColor = "#E8792B"                 # nino
+backgroundColor = "#EFE7D5"              # papel
+secondaryBackgroundColor = "#E1D8C3"     # panel
+textColor = "#2B2925"                    # linea
+borderColor = "#2B2925"                  # linea
+dataframeBorderColor = "#2B2925"
+dataframeHeaderBackgroundColor = "#E1D8C3"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "4px"                       # variante B (A usaría 6px)
+buttonRadius = "4px"
+linkColor = "#2F8F8A"                    # nina
+codeTextColor = "#2B2925"
+codeBackgroundColor = "#E1D8C3"
+font = "IBM Plex Sans, system-ui, sans-serif"
+headingFont = "IBM Plex Sans, system-ui, sans-serif"
+codeFont = "IBM Plex Mono, ui-monospace, Consolas, monospace"
+metricValueFontSize = "19px"
+chartCategoricalColors = ["#2B2925", "#E8792B", "#2F8F8A", "#7A736A"]
