@@ -1,56 +1,64 @@
 # STATUS de Proteo
 
-Última sesión: 2026-09-03. Fase 1 — descarga de Niño 3.4 con un clic.
+Última sesión: 2026-09-03. Fase 2 — adaptadores RONI y XM, página Datos completa.
 
 ## Funciona
 
-- Estructura del núcleo `proteo/` (sin Streamlit) y de la interfaz `app/`.
-- `proteo/schema.py`: `COLUMNS` y `validate(df)` con mensajes en español que
-  dicen exactamente qué falló (columnas/orden, `date` datetime64[ns] sin tz,
-  `value` float64 sin NaN, `index` permitido, `source` texto, `vintage` como
-  `datetime.date`, fechas sin duplicar y ascendentes).
-- `proteo/store/vintages.py`: `save_raw`, `save_processed`, `list_vintages`,
-  `load` (con `None` carga el más reciente). Aceptan `root` para tests con
-  `tmp_path`. Vintage roundtrip por parquet conserva `datetime.date`.
-- `proteo/data/nino34.py`: adaptador de referencia. `URL`, `fetch_raw()` (red),
-  `parse()` (pura, usa la última columna), `download()` (fetch → save_raw →
-  parse → validate → save_processed).
-- Tests en verde (`pytest -q`: 6 passed): fixture inline de CLAUDE.md, archivo
-  crudo de `examples/` vs. formateado (tol. 1e-9), `validate` rechaza fechas
-  duplicadas, y vintages (orden y carga del más reciente).
-- App: `app/Home.py` (portada) y `app/pages/1_Datos.py` (botón de descarga,
-  tabla de vintages, gráfica Plotly con umbrales ±0.5, fallback a último
-  vintage si falla la red). RONI y XM visibles pero deshabilitados.
-- Descarga real verificada 2026-09-03: 918 filas (1950-01 → 2026-06),
-  último valor junio 2026 = 1.44. Vintage guardado en `data/raw/nino34/` y
-  `data/processed/nino34/`.
+- Fase 1 completa (ver commit v0.1): schema, vintages, adaptador nino34,
+  portada y página Datos con Niño 3.4.
+- `proteo/data/roni.py`: mismo patrón que nino34. `parse()` mapea cada
+  temporada a su mes central (DJF→01 … NDJ→12) con el año de la fila.
+- `proteo/data/xm.py`: `fetch_raw(start, end)` descarga PrecBolsNaci por
+  tramos anuales con pydataxm (import perezoso dentro de la función);
+  `aggregate_monthly()` (pura) = promedio simple de todas las horas del mes.
+  Reproduce `examples/promedio_mensual.csv`: 320/320 meses, diff máx 2.3e-13.
+- Tests en verde (`pytest -q`: 11 passed). Sin red: fixtures inline de
+  CLAUDE.md, año sintético de 12 temporadas para RONI, y el par
+  crudo→promedio de examples/ para XM (tol 1e-6).
+- Página Datos: tres botones activos + "Descargar todo" con resumen,
+  tabla de vintages por índice, gráfica de dos ejes (Niño 3.4 y RONI a la
+  izquierda con umbrales ±0.5, precio XM a la derecha) y slider de rango
+  de fechas.
+- Descargas reales verificadas 2026-09-03, vintages guardados en
+  `data/raw/` y `data/processed/` para los tres índices:
+  - nino34: 918 filas, último junio 2026 = 1.44.
+  - roni: 919 filas, último julio 2026 (JJA) = 1.36; junio (MJJ) = 0.97.
+  - xm_precio_bolsa: 320 filas, último agosto 2026 = 945.00; enero 2000
+    reproduce la verdad de examples/ exacto.
 
 ## Falta
 
-- Adaptador RONI (`proteo/data/roni.py`), mismo patrón que nino34.
-- Adaptador XM (`proteo/data/xm.py`): `fetch_raw` por tramos anuales +
-  `aggregate_monthly` (probar contra `examples/promedio_mensual.csv`, tol 1e-6).
-- Modelos (`base`, `naive`, `sarimax`), backtest y registro de pronósticos.
-- `statsmodels` y `pydataxm` NO están aún en `requirements.txt` (se agregan en
-  las sesiones que los necesiten, avisando).
+- Modelos: `base.py`, `naive.py` (naive y estacional 12), `sarimax.py`
+  (statsmodels, aún no está en requirements.txt — avisar al agregarlo).
+- Backtest de origen móvil, métricas por horizonte, Diebold-Mariano.
+- Registro de pronósticos (`forecasts/registry.py`) y páginas 2, 3 y 4.
 
 ## Siguiente prompt
 
-Adaptador RONI copiando el patrón de `nino34.py`: `URL` de `RONI.ascii.txt`,
-`parse()` que mapea SEAS→mes central (DJF=01, JFM=02, …, NDJ=12) con el año de
-la fila, `download()`, y `tests/test_roni.py` con fixture inline de CLAUDE.md +
-comparación contra el crudo. Botón "Descargar RONI" activo en la página Datos.
+Fase 3, modelos: `proteo/models/base.py` (interfaz `fit(y, X)` /
+`forecast(h, X_future)` → DataFrame[date, mean, lower, upper]),
+`naive.py` con los dos baselines, `sarimax.py` con statsmodels
+(agregar statsmodels a requirements.txt) y la configuración de referencia
+SARIMAX(1,1,1)(1,0,0)12 con RONI rezagado 2 meses como exógena. Tests con
+series sintéticas. Página 2_Entrenar con selectores de parámetros.
 
 ## Decisiones tomadas
 
-- Identificación de fixtures de Niño 3.4 en `examples/`: crudo =
-  `sstoi.indices_20260804T125949Z.txt` (formato `YR MON … NINO3.4 ANOM`,
-  última columna); formateado = `Data-8-28.csv` (columna `nino34_anom`).
-- `parse()` fuerza `datetime64[ns]` porque pandas 2.x deriva `[s]` desde
-  objetos `date`, y el contrato exige `[ns]`.
-- `save_raw` escribe `.txt` para texto y `.csv` para DataFrame; `vintage` en
-  disco como `YYYY-MM-DD`.
-- Dos descargas el mismo día → mismo archivo (se reemplaza), como manda el
-  contrato de vintages.
-- `requirements.txt` incluye solo lo usado esta sesión: pandas, numpy,
-  requests, pyarrow, plotly, streamlit, pytest.
+- Fase 1: crudo Niño 3.4 = `sstoi.indices_…txt` (última columna), formateado =
+  `Data-8-28.csv` (`nino34_anom`). `parse()` fuerza `datetime64[ns]`.
+  `.gitignore` ancla `/data/*` a la raíz para no ignorar `proteo/data/`.
+- pydataxm agregado a requirements.txt (lo exige el adaptador XM). `ReadDB`
+  se importa de `pydataxm.pydataxm` (no del paquete raíz), y solo dentro de
+  `fetch_raw` para que los tests no dependan del paquete.
+- El crudo de XM en examples/ trae columnas `Daily Average` y
+  `Monthly Average` precalculadas que pydataxm NO devuelve; el adaptador
+  las ignora y calcula solo desde `Values_Hour01…24`.
+- `promedio_mensual.csv` usa fechas MM/DD/YYYY; agosto 2026 difiere de la
+  descarga de hoy (933.07 vs 945.00) porque el archivo se cortó el 28 de
+  agosto con el mes incompleto. No es un error del adaptador.
+- NOAA revisó RONI hacia atrás: CLAUDE.md documenta MJJ 2026 = 0.98
+  (verificado 2026-09-03 en la redacción) pero el archivo de hoy trae 0.97.
+  Confirmación práctica del porqué de los vintages. El fixture inline de
+  los tests sigue usando 0.98 de CLAUDE.md (parse es puro, no importa).
+- Deprecación de Streamlit: `st.plotly_chart(..., width="stretch")` en vez
+  de `use_container_width=True`.
