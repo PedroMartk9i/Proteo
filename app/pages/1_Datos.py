@@ -91,6 +91,15 @@ for col, (label, (index, _)) in zip(vintage_cols, ADAPTERS.items()):
                 hide_index=True,
             )
             series[label] = vintages.load(index)
+            # CSV con las cinco columnas del contrato; utf-8-sig para que
+            # Excel lo abra bien con tildes.
+            st.download_button(
+                "Exportar CSV",
+                series[label].to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"{index}_{disponibles[-1].isoformat()}.csv",
+                mime="text/csv",
+                key=f"csv_{index}",
+            )
         else:
             st.info("Sin vintages aún.")
 

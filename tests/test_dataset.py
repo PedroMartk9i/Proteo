@@ -60,6 +60,19 @@ def test_lag_survives_missing_month(price, exog):
     assert X.loc["2020-03-01", "roni_lag2"] == 1.0
 
 
+def test_lag_extends_beyond_exog_end(price, exog):
+    # Bug de la fase 5: la exógena termina 2 meses antes que el precio,
+    # pero con lag=2 los valores rezagados de esos meses SÍ existen y las
+    # filas de precio no deben perderse.
+    exog_short = exog[exog["date"] <= "2021-10-01"].reset_index(drop=True)
+    y, X = build_dataset(price, exog_short, lag=2)
+
+    assert y.index[-1] == pd.Timestamp("2021-12-01")
+    # X en dic 2021 lleva el exog de oct 2021 (mes 10).
+    assert X.loc["2021-12-01", "roni_lag2"] == 10.0
+    assert X.loc["2021-11-01", "roni_lag2"] == 9.0
+
+
 def test_add_squared(price, exog):
     _, X = build_dataset(price, exog, lag=2, add_squared=True)
     assert list(X.columns) == ["roni_lag2", "roni_lag2_sq"]

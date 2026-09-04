@@ -1,83 +1,67 @@
 # STATUS de Proteo
 
-Última sesión: 2026-09-03. Fase 4 — backtest de origen móvil, métricas,
-Diebold-Mariano y página Backtest.
+Última sesión: 2026-09-03. Fase 5 — emisión por temporada, registro
+inmutable, verificación y boletín. LAS CINCO PÁGINAS ESTÁN COMPLETAS.
 
 ## Funciona
 
-- Fases 1-3 completas (v0.1-v0.3): datos + vintages, dataset de
-  modelado, modelos (naive, naive estacional, SARIMAX) y página Entrenar.
-- `proteo/backtest/rolling_origin.py`: `run_backtest` con ventana
-  expanding/rolling, `refit_every` (los orígenes intermedios extienden la
-  muestra con `append` de statsmodels sin reoptimizar), exógena futura
-  por origen construida con `future_exog` usando SOLO datos hasta t
-  (reconstruye la exógena sin rezago desde las columnas de X y la corta
-  en el origen), callback de progreso y `label` para variantes.
-- `proteo/backtest/metrics.py`: `by_horizon` (n, mae, rmse, mape, smape),
-  `skill` (1 - m/b, positivo = mejora), `by_enso_phase` (nino/nina/
-  neutral por RONI en el origen, con n) y `coverage`.
-- `proteo/backtest/dm_test.py`: Diebold-Mariano con pérdida cuadrática o
-  absoluta, varianza de largo plazo con autocovarianzas hasta h-1,
-  corrección HLN de muestra pequeña, t de Student n-1. stat < 0 = el
-  modelo 1 pierde menos. Empate exacto → stat 0, p 1.
-- Tests en verde (`pytest -q`: 37 passed; 13 nuevos).
-- Página Backtest: multiselect de 4 modelos (naive, naive estacional,
-  SARIMAX sin/con exógena, estos dos con la config activa o el preset),
-  controles (initial_train 203, horizontes 1-6, ventana, refit_every,
-  rango, vintages), barra de progreso con tiempo, métricas por modelo y
-  horizonte, mejora % por incluir RONI, matriz DM por pestañas con
-  p<0.05 resaltado, desglose por fase ENSO, error absoluto en el tiempo,
-  cobertura de intervalos, y cada corrida guardada en
-  data/backtests/<fecha_hora>.parquet + .json con selector de recarga.
-
-## Benchmark de agosto 2026: reproducido
-
-Con initial_train=203, horizontes 1-6, expanding, preset del paper
-(datos reales, vintage 2026-09-03, n=319):
-
-- Mejora por incluir RONI, TODOS los horizontes positivos. En MAE crece
-  monótona: +0.4% (h=1) → +4.9% (h=6), consistente con la referencia
-  (≈+1% → ≈+5.7%). En RMSE: +0.8% → +3.8% (pico h=3-4).
-  LA REFERENCIA DEL BENCHMARK PARECE SER MAE, no RMSE.
-- Fase El Niño: n=15 orígenes (igual que la referencia), mejora MAE
-  +14.5% en h=3 (+5 a +10% en h=1-4), referencia ≈+10%.
-- Diebold-Mariano RONI vs sin-RONI: stat negativo en los 6 horizontes
-  (RONI pierde menos) y ningún p < 0.05 (mínimo p=0.19 en h=3), igual
-  que la referencia.
-- Truncar a abril 2026 no cambia el perfil: no hay bug de alineación.
+- Fases 1-4 completas (v0.1-v0.4): datos + vintages, dataset, modelos,
+  página Entrenar, backtest con benchmark reproducido.
+- `proteo/forecasts/seasons.py`: temporadas CPC con año del mes central
+  (NDJ 2026 = nov'26-ene'27). `next_season`: la temporada objetivo
+  empieza 2 meses después del último dato (el mes siguiente es paso
+  intermedio). Último dato agosto 2026 → OND 2026, como el spec.
+- `proteo/forecasts/registry.py`: `issue` (registry.parquet + JSON por
+  forecast_id YYYYMMDD-modelo-NN), `verify` (INMUTABLE: una fila
+  verificada no se toca aunque llegue un valor revisado), `pending`,
+  `scorecard`, `load`, `history`, `load_config`. Todo con `root` para
+  tests con tmp_path.
+- Página Pronósticos: cabecera con config activa (remite a Entrenar si
+  falta), preparar → tabla y gráfica con pasos supuestos marcados →
+  notas → confirmar y registrar; verificación contra el vintage más
+  reciente de XM con mensaje claro cuando no hay nada que verificar;
+  historial con gráfica de segmentos coloreados por resultado;
+  scorecard; boletín markdown por temporada.
+- Página Datos: botón "Exportar CSV" por índice (utf-8-sig para Excel).
+- Tests en verde (`pytest -q`: 46 passed; 9 nuevos de seasons/registry
+  + 1 de regresión del bug de rezago).
+- PRIMER PRONÓSTICO REAL EMITIDO: 20260903-sarimax-01, temporada
+  OND 2026, 6 pasos (sep'26-feb'27), vintages 2026-09-03, notas, con
+  boletín en data/forecasts/boletin_OND_2026.md. "Verificar pendientes"
+  responde correctamente que sep'26 aún no existe en XM.
 
 ## Falta
 
-- Registro de pronósticos (`forecasts/registry.py`): guardar cada
-  pronóstico emitido y verificarlo contra el valor observado después.
-- Página 4_Pronosticos (lee config/active_model.json, que ya existe).
+- Verificar el pronóstico emitido cuando XM publique septiembre 2026
+  (descargar XM en Datos → Pronósticos → "Verificar pendientes").
+- Ideas de mejora, no comprometidas: selector de métrica (MAE/RMSE) en
+  la tabla de mejora del backtest, backtest con vintages históricos
+  cuando se acumulen, pronóstico del RONI en vez de persistencia (v2).
 
 ## Siguiente prompt
 
-Fase 5, registro de pronósticos: `proteo/forecasts/registry.py` con
-emitir (modelo activo + vintages del día, guardar DataFrame de
-pronóstico con fecha de emisión), listar, y verificar (cruzar cada
-pronóstico emitido con el valor observado cuando llegue). Página
-4_Pronosticos: botón "Emitir pronóstico", tabla de pronósticos vivos y
-verificados con su error, y gráfica pronóstico vs observado.
+Mantenimiento mensual: descargar los tres índices (vintage nuevo),
+verificar pendientes, emitir el pronóstico de la siguiente temporada y
+exportar el boletín. O bien: mejoras de la lista de arriba.
 
 ## Decisiones tomadas
 
-- Fases 1-3: ver historial de STATUS en git (v0.1-v0.3).
-- El backtest usa un solo vintage (el más reciente) para todas las
-  fechas; la advertencia está en el docstring y el parámetro `vintage`
-  queda expuesto para cuando existan vintages históricos acumulados.
-- `run_backtest` recibe X ya rezagada (como sale de build_dataset) y
-  reconstruye la exógena sin rezago parseando el nombre de columna
-  (`roni_lag2`), para cortarla en cada origen sin mirar el futuro.
-  Extensiones sobre el spec: `label` (distinguir variantes en la columna
-  model) y `vintage` (futuro).
-- `refit_every>1`: con ventana rolling siempre reentrena (append no
-  aplica si la ventana pierde observaciones por el inicio); los naive
-  reentrenan siempre (son gratis).
-- Los intervalos del backtest usan el alpha por defecto de los modelos
-  (0.2), por eso la tabla de cobertura dice "nominal 80%".
-- data/backtests/ cae bajo el gitignore de /data/: las corridas son
-  locales, reproducibles con el JSON de configuración adjunto.
-- La tabla de mejora de la página usa RMSE (skill por defecto); el
-  hallazgo de que la referencia parece MAE quedó documentado arriba.
+- Fases 1-4: ver historial de STATUS en git (v0.1-v0.4).
+- BUG CORREGIDO en dataset.py (detectado y avisado en esta sesión):
+  shift(lag) posicional recortaba la cobertura de X al calendario propio
+  de la exógena, perdiendo los últimos `lag` meses del precio cuyo valor
+  rezagado SÍ estaba observado (entrenaba hasta julio en vez de agosto y
+  la temporada salía SON en vez de OND). Ahora shift(lag, freq="MS")
+  desplaza el índice por calendario. Test de regresión incluido. El
+  coeficiente del paper apenas se mueve: 75.68 (p=2.7e-05) con n=320.
+- Convención de temporada: etiqueta con el año del MES CENTRAL (igual
+  que RONI en CLAUDE.md). El boletín marca cada paso como intermedio /
+  objetivo / extendido.
+- Inmutabilidad del registro: verify solo toca filas con verified_at
+  NaN; el pronóstico se juzga contra el PRIMER valor observado, no
+  contra revisiones posteriores.
+- inside_interval se guarda como float (0/1/NaN) por compatibilidad de
+  parquet; issued_at/verified_at como texto ISO.
+- El registro real (data/forecasts/) queda fuera de git por el
+  gitignore de /data/. El respaldo es responsabilidad del entorno
+  (OneDrive lo cubre en esta máquina).

@@ -63,7 +63,12 @@ def build_dataset(
     if exog is not None:
         xs, exog_name = _to_monthly_series(exog)
         col = f"{exog_name}_lag{lag}"
-        X = xs.shift(lag).to_frame(col)
+        # shift(lag, freq="MS") desplaza el ÍNDICE por calendario, no las
+        # posiciones: extiende la cobertura lag meses más allá del último
+        # dato de la exógena, para no perder los últimos meses del precio
+        # cuyo valor rezagado sí está observado.
+        lagged = xs.shift(lag, freq="MS") if lag > 0 else xs
+        X = lagged.to_frame(col)
         if add_squared:
             X[f"{col}_sq"] = X[col] ** 2
 
