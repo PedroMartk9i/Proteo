@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# Permite importar ``proteo`` al correr la app desde la raíz del repo.
+# Permite importar ``proteo`` y ``app`` al correr desde la raíz del repo.
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -14,55 +14,71 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from app import components, theme
+from app.theme import PALETTE, PLOTLY_CONFIG
 from proteo.dataset import build_dataset, future_exog, inverse_transform
 from proteo.forecasts import registry
 from proteo.forecasts.seasons import next_season
 from proteo.models.sarimax import SARIMAXModel
 from proteo.store import vintages
 
-st.set_page_config(page_title="Pronósticos · Proteo", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Pronósticos · Proteo", layout="wide")
+theme.inject_css()
+theme.plotly_template()
 
 st.title("Pronósticos")
-st.caption(
-    "Emitir, registrar de forma inmutable y verificar cuando llegue el dato "
-    "real. Una fila verificada no se toca nunca, ni con valores revisados."
+st.markdown(
+    '<p class="pt-help">Emitir, registrar de forma inmutable y verificar '
+    "cuando llegue el dato real. Una fila verificada no se toca nunca, ni "
+    "con valores revisados.</p>",
+    unsafe_allow_html=True,
 )
 
 PRICE_INDEX = "xm_precio_bolsa"
 CONFIG_PATH = ROOT / "config" / "active_model.json"
 FORECASTS_DIR = ROOT / "data" / "forecasts"
 
-COLOR = {
-    "obs": "#22303f", "modelo": "#1d4ed8",
-    "banda": "rgba(29, 78, 216, 0.15)", "asumido": "#c2410c",
-    "fuera": "#d94a3d", "pendiente": "#8a949e",
-}
+STEP_EXOG = {True: "supuesta (persistencia)", False: "observada"}
 
 # --- Configuración activa ---------------------------------------------------
 if not CONFIG_PATH.exists():
     st.info(
-        "No hay configuración activa. Ve a la página **Entrenar**, ajusta el "
-        "modelo y pulsa «Guardar como configuración activa»."
+        "No hay configuración activa. Ve a la página Entrenar, ajusta el "
+        "modelo y pulsa Guardar como configuración activa."
     )
     st.stop()
 
 with open(CONFIG_PATH, encoding="utf-8") as fh:
     cfg = json.load(fh)
 
+saved_at = (
+    date.fromisoformat(cfg["saved_at"]) if cfg.get("saved_at") else None
+)
+config_name = (
+    f"SARIMAX{tuple(cfg['order'])}{tuple(cfg['seasonal_order'])} · "
+    f"exógena {cfg.get('exog') or 'ninguna'} rezago {cfg.get('lag', 0)} · "
+    f"objetivo {'log' if cfg.get('log_target') else 'nivel'}"
+)
+components.data_header(config_name, "configuración activa", saved_at)
+train_vintages = ", ".join(
+    f"{k} {v}" for k, v in cfg.get("vintages", {}).items()
+)
 st.markdown(
-    f"**Configuración activa:** SARIMAX{tuple(cfg['order'])}"
-    f"{tuple(cfg['seasonal_order'])} · exógena **{cfg.get('exog') or 'ninguna'}** "
-    f"rezago {cfg.get('lag', 0)} · objetivo "
-    f"{'log' if cfg.get('log_target') else 'nivel'} · guardada {cfg.get('saved_at')}"
+    f'<p class="pt-help">Vintages de entrenamiento: {train_vintages}.</p>',
+    unsafe_allow_html=True,
 )
 
 # --- Emitir -----------------------------------------------------------------
-st.header("Emitir")
+components.section(
+    "Emitir",
+    help="Dos pasos: preparar el pronóstico de la próxima temporada y, "
+    "cuando convenza, confirmar para escribirlo en el registro.",
+)
 
 extend_h = st.checkbox("Extender a 6 pasos (más allá de la temporada)", value=True)
 
-if st.button("Preparar pronóstico de la próxima temporada", type="primary"):
-    with st.spinner("Entrenando con la configuración activa…"):
+if st.button("Preparar pronóstico de la próxima temporada"):
+    with st.spinner("Entrenando con la configuración activa"):
         price_vintage = vintages.list_vintages(PRICE_INDEX)[-1]
         price = vintages.load(PRICE_INDEX, price_vintage)
         exog_index = cfg.get("exog")
@@ -121,58 +137,64 @@ if "prepared" in st.session_state:
     fc = prep["fc"]
     season_months = set(pd.to_datetime(prep["season_months"]))
 
-    st.subheader(f"Temporada objetivo: {prep['season']}")
-    st.caption(
-        f"Último dato observado: {prep['last_observed']}. Los meses previos a "
-        "la temporada son pasos intermedios."
+    components.section(
+        f"Temporada objetivo: {prep['season']}",
+        help=f"Último dato observado: {prep['last_observed']}. Los meses "
+        "previos a la temporada son pasos intermedios; los posteriores, "
+        "extendidos.",
     )
 
+    def _membership(d) -> str:
+        if d in season_months:
+            return "objetivo"
+        return "intermedio" if d < min(season_months) else "extendido"
+
     display = fc.copy()
-    display["temporada"] = display["date"].map(
-        lambda d: "objetivo" if d in season_months else "intermedio"
-    )
-    display["exógena"] = display["assumed_exog"].map(
-        lambda a: "supuesta (persistencia)" if a else "observada"
-    )
+    display["temporada"] = display["date"].map(_membership)
+    display["exógena"] = display["assumed_exog"].map(STEP_EXOG.get)
     st.dataframe(
-        display[["date", "temporada", "mean", "lower", "upper", "exógena"]]
-        .style.format({"mean": "{:.1f}", "lower": "{:.1f}", "upper": "{:.1f}"}),
+        display[["date", "temporada", "mean", "lower", "upper", "exógena"]],
         hide_index=True,
+        column_config={
+            "date": st.column_config.DateColumn("fecha", format="YYYY-MM"),
+            **{
+                c: st.column_config.NumberColumn(c, format="%.1f")
+                for c in ("mean", "lower", "upper")
+            },
+        },
     )
 
     y_tail = prep["y_tail"]
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=y_tail.index, y=y_tail.values, mode="lines", name="Observado",
-        line=dict(color=COLOR["obs"], width=1.4),
+        line=dict(color=PALETTE["linea"], width=1.4),
     ))
     fig.add_trace(go.Scatter(
         x=pd.concat([fc["date"], fc["date"][::-1]]),
         y=pd.concat([fc["upper"], fc["lower"][::-1]]),
-        fill="toself", fillcolor=COLOR["banda"], line=dict(width=0),
+        fill="toself", fillcolor=PALETTE["banda"], mode="none",
         name="Intervalo", hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
         x=fc["date"], y=fc["mean"], mode="lines+markers", name="Pronóstico",
-        line=dict(color=COLOR["modelo"], width=2.2),
+        line=dict(color=PALETTE["nino"], width=2.2, dash="dash"),
     ))
     sup = fc[fc["assumed_exog"]]
     if not sup.empty:
         fig.add_trace(go.Scatter(
             x=sup["date"], y=sup["mean"], mode="markers",
-            name="Exógena supuesta",
-            marker=dict(color=COLOR["asumido"], size=9, symbol="diamond"),
+            name="Exógena supuesta (persistencia)",
+            marker=dict(color=PALETTE["tinta"], size=9, symbol="diamond"),
         ))
     fig.update_layout(
         xaxis_title="Fecha", yaxis_title="Precio de bolsa (COP/kWh)",
-        hovermode="x unified", height=380,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        margin=dict(t=30),
+        height=380,
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG)
 
     notes = st.text_input("Notas del pronóstico (contexto, supuestos, dudas)")
-    if st.button("Confirmar y registrar"):
+    if st.button("Confirmar y registrar", type="primary"):
         forecast_id = registry.issue(
             fc,
             {**cfg, "vintages": prep["vintages"]},
@@ -180,14 +202,17 @@ if "prepared" in st.session_state:
             notes=notes,
         )
         del st.session_state["prepared"]
-        st.success(f"Pronóstico registrado: **{forecast_id}**")
+        st.success(f"Pronóstico registrado: {forecast_id}")
         st.rerun()
 
 # --- Verificar --------------------------------------------------------------
-st.header("Verificar")
+components.section("Verificar")
 
 pend = registry.pending()
-st.caption(f"Filas pendientes: {len(pend)}")
+st.markdown(
+    f'<p class="pt-help">Filas pendientes: {len(pend)}.</p>',
+    unsafe_allow_html=True,
+)
 
 if st.button("Verificar pendientes"):
     if pend.empty:
@@ -201,7 +226,8 @@ if st.button("Verificar pendientes"):
             st.info(
                 "Nada que verificar todavía: el primer mes objetivo "
                 f"({pd.Timestamp(first_target).date()}) aún no existe en el "
-                f"vintage de XM (llega hasta {actual.index.max().date()})."
+                f"vintage de XM (llega hasta {actual.index.max().date()}). "
+                "Descarga XM en Datos cuando publiquen el mes."
             )
         else:
             st.success(f"{len(verified)} filas verificadas.")
@@ -212,12 +238,26 @@ if st.button("Verificar pendientes"):
             )
 
 # --- Historial --------------------------------------------------------------
-st.header("Historial")
+components.section("Historial")
 
 full = registry.load()
 if full.empty:
-    st.info("Aún no se ha emitido ningún pronóstico.")
+    st.info(
+        "No se ha emitido ningún pronóstico todavía. Usa Preparar y luego "
+        "Confirmar y registrar."
+    )
 else:
+    for fid, group in full.groupby("forecast_id"):
+        is_verified = group["verified_at"].notna().any()
+        estado = "verificado" if is_verified else "pendiente"
+        season = group["season_label"].iloc[0]
+        st.markdown(
+            f'<div class="pt-datahead"><span class="pt-name">{fid}</span>'
+            f"{components.status_led(is_verified)}"
+            f'<span class="pt-stamp">{season} · {estado}</span></div>',
+            unsafe_allow_html=True,
+        )
+
     resumen = full.copy()
     resumen["estado"] = resumen["verified_at"].map(
         lambda v: "pendiente" if pd.isna(v) else "verificado"
@@ -225,10 +265,17 @@ else:
     st.dataframe(
         resumen[["forecast_id", "issued_at", "season_label", "model",
                  "target_date", "horizon", "mean", "actual", "error",
-                 "inside_interval", "estado"]]
-        .style.format({"mean": "{:.1f}", "actual": "{:.1f}", "error": "{:.1f}"},
-                      na_rep="—"),
+                 "inside_interval", "estado"]],
         hide_index=True,
+        column_config={
+            "target_date": st.column_config.DateColumn(
+                "target_date", format="YYYY-MM"
+            ),
+            **{
+                c: st.column_config.NumberColumn(c, format="%.1f")
+                for c in ("mean", "actual", "error")
+            },
+        },
     )
 
     price = vintages.load(PRICE_INDEX)
@@ -236,53 +283,65 @@ else:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=observed.index[-60:], y=observed.iloc[-60:], mode="lines",
-        name="Observado", line=dict(color=COLOR["obs"], width=1.2),
+        name="Observado", line=dict(color=PALETTE["linea"], width=1.2),
     ))
+    # Código de color: teal = el real cayó dentro del intervalo,
+    # naranja = al menos un paso quedó fuera, tinta = pendiente.
     for fid, group in full.groupby("forecast_id"):
         group = group.sort_values("target_date")
         verified_rows = group[group["verified_at"].notna()]
         if verified_rows.empty:
-            color, estado = COLOR["pendiente"], "pendiente"
+            color, band, estado = PALETTE["tinta"], PALETTE["banda_tinta"], "pendiente"
         elif (verified_rows["inside_interval"] == 0).any():
-            color, estado = COLOR["fuera"], "con fallos"
+            color, band, estado = PALETTE["nino"], PALETTE["banda"], "fuera del intervalo"
         else:
-            color, estado = COLOR["modelo"], "dentro"
+            color, band, estado = PALETTE["nina"], PALETTE["banda_nina"], "dentro del intervalo"
         fig.add_trace(go.Scatter(
             x=pd.concat([group["target_date"], group["target_date"][::-1]]),
             y=pd.concat([group["upper"], group["lower"][::-1]]),
-            fill="toself", fillcolor="rgba(138, 148, 158, 0.12)",
-            line=dict(width=0), showlegend=False, hoverinfo="skip",
+            fill="toself", fillcolor=band, mode="none",
+            showlegend=False, hoverinfo="skip",
         ))
         fig.add_trace(go.Scatter(
             x=group["target_date"], y=group["mean"], mode="lines+markers",
-            name=f"{fid} ({estado})", line=dict(color=color, width=1.8),
+            name=f"{fid} · {estado}", line=dict(color=color, width=1.8),
         ))
     fig.update_layout(
         xaxis_title="Fecha", yaxis_title="Precio de bolsa (COP/kWh)",
-        hovermode="x unified", height=420,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        margin=dict(t=30),
+        height=420,
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG)
 
 # --- Scorecard --------------------------------------------------------------
-st.header("Scorecard")
+components.section("Scorecard")
 card = registry.scorecard()
 if card.empty:
-    st.info("Sin filas verificadas todavía: el scorecard llegará con los datos.")
+    st.info(
+        "Sin filas verificadas todavía: el scorecard se llena con la "
+        "primera verificación."
+    )
 else:
     st.dataframe(
-        card.style.format(
-            {"mae": "{:.1f}", "rmse": "{:.1f}", "coverage_pct": "{:.0f} %"}
-        ),
+        card,
         hide_index=True,
+        column_config={
+            "mae": st.column_config.NumberColumn("mae", format="%.1f"),
+            "rmse": st.column_config.NumberColumn("rmse", format="%.1f"),
+            "coverage_pct": st.column_config.NumberColumn(
+                "coverage_pct", format="%.0f %%"
+            ),
+        },
     )
 
 # --- Boletín ----------------------------------------------------------------
-st.header("Boletín")
+components.section("Boletín")
 
 if full.empty:
-    st.caption("Emite un pronóstico para poder exportar el boletín.")
+    st.markdown(
+        '<p class="pt-help">Emite un pronóstico para poder exportar el '
+        "boletín.</p>",
+        unsafe_allow_html=True,
+    )
 else:
     last_id = full.sort_values("issued_at")["forecast_id"].iloc[-1]
     if st.button(f"Exportar boletín de {last_id}"):
@@ -325,14 +384,14 @@ else:
                 f"| {target.date()} | {int(r['horizon'])} | "
                 f"{membership} | {r['mean']:.1f} | {r['lower']:.1f} | "
                 f"{r['upper']:.1f} | "
-                f"{'supuesta' if r['assumed_exog'] else 'observada'} |"
+                f"{STEP_EXOG[bool(r['assumed_exog'])]} |"
             )
         lines += [
             "",
             "## Supuestos",
             "",
-            "- La exógena futura NO se pronostica: persistencia del último "
-            "valor observado"
+            "- La exógena futura NO se pronostica: supuesta (persistencia) "
+            "del último valor observado"
             + (f" a partir del paso {int(assumed_from)}." if pd.notna(assumed_from)
                else " (no fue necesaria: todos los pasos usan valores observados)."),
             "- Pronóstico emitido con el vintage más reciente de cada serie "
@@ -345,18 +404,22 @@ else:
         if verified_all.empty:
             first_pending = pd.Timestamp(full["target_date"].min()).date()
             lines.append(
-                f"Ninguno todavía. Primera verificación posible cuando XM "
-                f"publique {first_pending.strftime('%Y-%m')}."
+                "Ninguno todavía: todo el registro está pendiente. Primera "
+                "verificación posible cuando XM publique "
+                f"{first_pending.strftime('%Y-%m')} (Datos → Descargar XM → "
+                "Pronósticos → Verificar pendientes)."
             )
         else:
             last_verified = verified_all.sort_values("verified_at").iloc[-1]
+            estado = (
+                "dentro del intervalo" if last_verified["inside_interval"]
+                else "fuera del intervalo"
+            )
             lines.append(
                 f"- {pd.Timestamp(last_verified['target_date']).date()}: "
                 f"pronóstico {last_verified['mean']:.1f}, observado "
                 f"{last_verified['actual']:.1f}, error "
-                f"{last_verified['error']:+.1f} "
-                f"({'dentro' if last_verified['inside_interval'] else 'fuera'} "
-                "del intervalo)."
+                f"{last_verified['error']:+.1f} ({estado})."
             )
 
         FORECASTS_DIR.mkdir(parents=True, exist_ok=True)

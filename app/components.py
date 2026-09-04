@@ -13,6 +13,31 @@ import streamlit as st
 from app.theme import PALETTE
 
 
+def dot(color_key: str) -> str:
+    """Punto de 10 px (HTML) en un color de la paleta, por nombre."""
+    return f'<span class="pt-led" style="background:{PALETTE[color_key]}"></span>'
+
+
+def phase_led(phase: str) -> str:
+    """LED por fase ENSO: nino (naranja), nina (teal), neutral (tinta)."""
+    return dot({"nino": "nino", "nina": "nina"}.get(phase, "tinta"))
+
+
+def status_led(verified: bool) -> str:
+    """LED de estado de un pronóstico: teal verificado, tinta pendiente."""
+    return dot("nina" if verified else "tinta")
+
+
+def control_header(label: str, value: str) -> None:
+    """Cabecera de grupo de controles: etiqueta mono arriba a la
+    izquierda y valor actual en mono a la derecha."""
+    st.markdown(
+        f'<div class="pt-ctrl"><span class="pt-l">{label}</span>'
+        f'<span class="pt-v">{value}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def led(vintage: date | None) -> str:
     """Punto de estado de 10 px (HTML). Naranja si el vintage es de hoy,
     teal si tiene menos de 7 días, tinta si es más viejo o no existe."""

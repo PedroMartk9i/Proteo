@@ -1,71 +1,76 @@
-# STATUS de Proteo — v1.1
+# STATUS de Proteo — v1.2
 
-Última sesión: 2026-09-03. Sistema de diseño "caja beige" (variante B)
-aplicado a Inicio y Datos.
+Última sesión: 2026-09-03. Sistema "caja beige" aplicado a las cuatro
+páginas, con revisión de accesibilidad y consistencia.
 
-## Qué hace (v1.1)
+## Qué hace (v1.2)
 
-- Todo lo de v1.0 (ver historial): datos con vintages, SARIMAX
-  interactivo, backtest con benchmark reproducido, pronósticos con
-  registro inmutable, arranque con doble clic.
-- Sistema de diseño "caja beige" como código reutilizable:
-  - `app/theme.py`: PALETTE (papel, panel, linea, tinta, nino, nina,
-    bandas), IBM Plex Sans/Mono con fallback del sistema,
-    `BRUTAL_ACCENT = True` (variante B: sombras duras 4px 4px 0 en
-    tinta, radio 4 px, primario que se hunde), `inject_css()`,
-    template Plotly "proteo" como default, `PLOTLY_CONFIG`,
-    `add_enso_bands()` (agrupa meses consecutivos en un rectángulo)
-    y `add_threshold_lines()`.
-  - `app/components.py`: `led` (naranja hoy / teal < 7 días / tinta),
-    `vintage_stamp`, `metric_card`, `data_header`, `appbar`, `section`.
-  - `.streamlit/config.toml`: theming nativo completo de Streamlit 1.63
-    (colores, borderColor, radios 4px, fuentes Plex, dataframe, charts).
-- Inicio: appbar con wordmark mono + LED + sello, frase, tres
-  data_header y enlace a Datos. Sin emojis.
-- Datos: "Descargar todo" único primario; gráfica con template proteo,
-  precio (linea) a la izquierda, Niño 3.4 (nino) y RONI (nina) a la
-  derecha con umbrales y bandas ENSO; tabla de vintages con DateColumn;
-  estados vacíos con la voz del tile ("No hay vintage de RONI todavía.
-  Pulsa Descargar RONI.").
-- Capturas reales de Inicio y Datos en docs/img/ (home.png, datos.png),
-  tomadas de la app corriendo.
-- CLAUDE.md: sección "## Diseño" con las reglas del sistema.
-- 46 tests en verde (el diseño no toca proteo/).
+- Todo lo de v1.0-v1.1 (ver historial): datos con vintages, SARIMAX
+  interactivo, backtest, pronósticos con registro inmutable, arranque
+  con doble clic, sistema de diseño en Inicio y Datos.
+- Entrenar rediseñada: barra lateral como panel de instrumento (grupos
+  con borde, etiqueta mono arriba y valor actual a la derecha con
+  `components.control_header`), Entrenar único primario, métricas con
+  metric_card, fila de la exógena con fondo banda y p<0.05 en peso 500,
+  gráfica con bandas ENSO al fondo (cuando la exógena es RONI),
+  ajustado en tinta y pronóstico en nino discontinuo, panel de exógena
+  con futuros observados por signo (nino/nina) y supuestos en tinta,
+  advertencia de persistencia como st.info.
+- Backtest rediseñada: progreso con tiempo en mono, métricas con
+  NumberColumn a dos decimales, mejora % coloreada (positivo nino,
+  negativo nina), Diebold-Mariano como heatmap papel→panel con celdas
+  p<0.05 anotadas en linea, fases ENSO en tres columnas con metric_card
+  y LED por fase (+ tabla completa en expander), error absoluto con el
+  colorway del template.
+- Pronósticos rediseñada: cabecera con data_header de la config activa
+  (LED por frescura de saved_at), flujo en dos pasos con Confirmar y
+  registrar como único primario, historial con LED de estado por
+  pronóstico, gráfica con código de color (dentro=nina, fuera=nino,
+  pendiente=tinta) explicado en la leyenda, boletín con el mismo
+  vocabulario de la interfaz (observada / supuesta (persistencia),
+  pendiente / verificado, intermedio / objetivo / extendido).
+- Accesibilidad: tests/test_theme.py verifica 4.5:1 (AA) en los seis
+  pares texto/fondo. Foco visible teal en botones y controles. Ningún
+  color literal fuera de app/theme.py (grep en verde).
+- Capturas reales de las cinco páginas en docs/img/ (backtest.png
+  muestra una corrida completa nueva: 112 orígenes, mejora +0.8% a
+  +3.8% por horizonte).
+- 52 tests en verde; proteo/ intacto.
+
+## Cambios de paleta por accesibilidad (avisar a Pedro)
+
+- tinta: #7A736A → #625B53 (el original daba 3.3:1 sobre panel).
+- nina: #2F8F8A → #22706D (papel sobre el original daba 3.2:1; además
+  la lista de pares del spec exigía papel/nina ≥ 4.5:1).
+- banda_nina y la grilla del template se derivan de los nuevos valores.
+- docs/style_tile.html y .streamlit/config.toml actualizados con los
+  mismos valores. PALETTE tiene un token derivado extra, banda_tinta
+  (tinta al 15 %), para las bandas de pronósticos pendientes.
 
 ## Qué no hace todavía
 
-- Entrenar, Backtest y Pronósticos siguen con el estilo anterior: se
-  migran al sistema en la siguiente sesión (usar theme + components,
-  quitar sus diccionarios COLOR locales y emojis).
 - Límites de v1.0 sin cambio: RONI futuro por persistencia, backtest
   con un solo vintage, app local.
-- README: faltan capturas de las otras tres páginas (los marcadores ya
-  existen) y completar grupo de investigación y coautores.
+- README: completar grupo de investigación y coautores.
 
-## Siguiente prompt
+## Pendiente operativo
 
-Aplicar el sistema "caja beige" a 2_Entrenar, 3_Backtest y
-4_Pronosticos: reemplazar sus diccionarios COLOR por PALETTE, activar
-el template proteo y PLOTLY_CONFIG en todas las gráficas, usar
-add_enso_bands/add_threshold_lines en el panel de exógena, metric_card
-para las métricas, data_header/section/appbar donde aplique, quitar
-emojis de set_page_config, y capturar entrenar.png, backtest.png y
-pronosticos.png para el README.
+- Cuando XM publique septiembre 2026: Datos → Descargar XM →
+  Pronósticos → Verificar pendientes. Hay 12 filas pendientes (dos
+  pronósticos de OND 2026).
 
-## Decisiones tomadas (v1.1)
+## Decisiones tomadas (v1.2)
 
-- Variante elegida por Pedro: B (acento brutalista).
-- `inject_css()` se inyecta en CADA ejecución del script, no una vez
-  por sesión como decía el spec: Streamlit vacía el DOM en cada rerun y
-  con la bandera en session_state la página quedaría sin estilo tras el
-  primer clic. La regla de uso es "una llamada por página, en la
-  cabecera". Documentado en el docstring.
-- El eje de índices ENSO pasó al lado derecho (y2) y el precio al
-  izquierdo, como pide la firma de add_threshold_lines(yref="y2").
-- `data_header(name, index, vintage)` lleva nombre visible e índice
-  separados (el índice va en el title del sello).
-- Capturas con Chrome headless vía CDP (scratchpad/shot.py) porque
-  --screenshot con virtual-time-budget no espera el websocket de
-  Streamlit y salía la página vacía.
-- style_tile.html movido de la raíz a docs/style_tile.html (la ruta que
-  usa CLAUDE.md).
+- Grupos de la barra lateral con st.container(border=True) +
+  control_header; los valores del encabezado salen de session_state
+  (por eso h y confianza ahora tienen clave).
+- El heatmap DM anota TODOS los p-valores (tinta) y los significativos
+  en linea, sin barra de color; diagonal vacía.
+- Las bandas de intervalo usan mode="none" en el trace de relleno: sin
+  él, el template pinta marcadores en el borde de la banda.
+- El desglose por fase muestra RMSE (media sobre horizontes) por modelo
+  en metric_cards y conserva la tabla completa en un expander.
+- Ojo al probar con la app abierta: un servidor viejo en el 8765
+  mantiene módulos importados (theme/components) cacheados y mezcla
+  código nuevo de páginas con módulos viejos; reiniciar el servidor
+  tras cambiar app/theme.py o app/components.py.

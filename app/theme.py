@@ -19,11 +19,18 @@ PALETTE = {
     "papel": "#EFE7D5",   # fondo general: plástico crema de la caja beige
     "panel": "#E1D8C3",   # paneles, barra lateral, cabeceras
     "linea": "#2B2925",   # texto, bordes, serie de precio
-    "tinta": "#7A736A",   # etiquetas, ejes, grilla, sombras (variante B)
+    "tinta": "#625B53",   # etiquetas, ejes, grilla, sombras (variante B).
+                          # Oscurecido desde #7A736A: el original daba 3.3:1
+                          # sobre panel y el mínimo AA es 4.5:1.
     "nino": "#E8792B",    # acción primaria, RONI positivo, fase El Niño
-    "nina": "#2F8F8A",    # RONI negativo, fase La Niña, foco de teclado
+    "nina": "#22706D",    # RONI negativo, fase La Niña, foco de teclado.
+                          # Oscurecido desde #2F8F8A: papel sobre el original
+                          # daba 3.2:1.
     "banda": "rgba(232,121,43,.18)",
-    "banda_nina": "rgba(47,143,138,.16)",
+    "banda_nina": "rgba(34,112,109,.16)",
+    # Derivado (no está en el tile): tinte neutro para bandas de
+    # pronósticos pendientes, tinta al 15 %.
+    "banda_tinta": "rgba(98,91,83,.15)",
 }
 
 FONT_UI = "IBM Plex Sans"
@@ -38,7 +45,7 @@ STACK_UI = f'"{FONT_UI}", system-ui, -apple-system, "Segoe UI", sans-serif'
 STACK_MONO = f'"{FONT_MONO}", ui-monospace, "Cascadia Mono", Consolas, monospace'
 
 _RADIUS = "4px" if BRUTAL_ACCENT else "6px"
-_GRID = "rgba(122,115,106,.25)"  # tinta al 25 %
+_GRID = "rgba(98,91,83,.25)"  # tinta al 25 %
 
 PLOTLY_CONFIG = {"displayModeBar": False}
 
@@ -192,6 +199,26 @@ def inject_css() -> None:
         }}
         .pt-datahead .pt-name {{
             font-weight: 600; font-size: 14px; color: {PALETTE['linea']};
+        }}
+        /* Cabecera de grupo de controles: etiqueta mono a la izquierda,
+           valor actual en mono a la derecha (tarjeta-instrumento). */
+        .pt-ctrl {{
+            display: flex; justify-content: space-between;
+            align-items: baseline; gap: 12px; margin: 2px 0 6px;
+        }}
+        .pt-ctrl .pt-l {{
+            font-family: {STACK_MONO};
+            font-size: 11px; letter-spacing: .06em;
+            text-transform: uppercase; color: {PALETTE['tinta']};
+        }}
+        .pt-ctrl .pt-v {{
+            font-family: {STACK_MONO};
+            font-size: 14px; font-weight: 500; color: {PALETTE['linea']};
+        }}
+        /* Texto de la barra de progreso en mono. */
+        [data-testid="stProgress"] p {{
+            font-family: {STACK_MONO};
+            font-size: 12px; color: {PALETTE['tinta']};
         }}
         .pt-section {{
             font-family: {STACK_UI};

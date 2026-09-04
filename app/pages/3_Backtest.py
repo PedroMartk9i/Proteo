@@ -7,7 +7,7 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-# Permite importar ``proteo`` al correr la app desde la raíz del repo.
+# Permite importar ``proteo`` y ``app`` al correr desde la raíz del repo.
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -15,6 +15,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from app import components, theme
+from app.theme import PALETTE, PLOTLY_CONFIG
 from proteo.backtest.dm_test import diebold_mariano
 from proteo.backtest.metrics import by_enso_phase, by_horizon, coverage, skill
 from proteo.backtest.rolling_origin import run_backtest
@@ -24,31 +26,29 @@ from proteo.models.presets import PAPER
 from proteo.models.sarimax import SARIMAXModel
 from proteo.store import vintages
 
-st.set_page_config(page_title="Backtest · Proteo", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Backtest · Proteo", layout="wide")
+theme.inject_css()
+theme.plotly_template()
 
 st.title("Backtest")
-st.caption(
-    "Origen móvil: entrenar hasta t, pronosticar t+1..t+h, avanzar un mes. "
-    "Usa el vintage más reciente para todas las fechas (ver STATUS.md)."
+st.markdown(
+    '<p class="pt-help">Origen móvil: entrenar hasta t, pronosticar '
+    "t+1..t+h, avanzar un mes. Usa el vintage más reciente para todas las "
+    "fechas.</p>",
+    unsafe_allow_html=True,
 )
 
 PRICE_INDEX = "xm_precio_bolsa"
 CONFIG_PATH = ROOT / "config" / "active_model.json"
 BACKTESTS_DIR = ROOT / "data" / "backtests"
 
-# Paleta de la guía de diseño: naranja = modelo simple, azul = completo.
-MODEL_COLORS = {
-    "naive": "#9fb3c8",
-    "naive_estacional": "#6b7680",
-    "sarimax": "#c2410c",
-    "sarimax_roni": "#1d4ed8",
-}
 MODEL_LABELS = {
     "naive": "Naive",
     "naive_estacional": "Naive estacional",
     "sarimax": "SARIMAX sin exógena",
     "sarimax_roni": "SARIMAX con exógena",
 }
+PHASE_NAMES = {"nino": "El Niño", "nina": "La Niña", "neutral": "Neutral"}
 
 
 def _active_config() -> dict:
@@ -80,42 +80,55 @@ cfg = _active_config()
 
 # --- Barra lateral ----------------------------------------------------------
 with st.sidebar:
-    st.header("Configuración")
-    st.caption(f"SARIMAX{cfg['order']}{cfg['seasonal_order']} · exógena "
-               f"{cfg['exog']} rezago {cfg['lag']} · fuente: {cfg['source']}")
+    with st.container(border=True):
+        components.control_header(
+            "modelo sarimax",
+            f"{cfg['order']}{cfg['seasonal_order']}",
+        )
+        st.markdown(
+            f'<p class="pt-help">Exógena {cfg["exog"]} rezago {cfg["lag"]} · '
+            f"fuente: {cfg['source']}</p>",
+            unsafe_allow_html=True,
+        )
+        selected_models = st.multiselect(
+            "Modelos",
+            list(MODEL_LABELS),
+            default=list(MODEL_LABELS),
+            format_func=MODEL_LABELS.get,
+        )
 
-    selected_models = st.multiselect(
-        "Modelos",
-        list(MODEL_LABELS),
-        default=list(MODEL_LABELS),
-        format_func=MODEL_LABELS.get,
-    )
+    with st.container(border=True):
+        components.control_header("datos", cfg["exog"])
+        price_vintages = vintages.list_vintages(PRICE_INDEX)
+        exog_vintages = vintages.list_vintages(cfg["exog"])
+        if not price_vintages or not exog_vintages:
+            st.error(
+                "Falta un vintage de precio o de exógena. "
+                "Descárgalos en la página Datos."
+            )
+            st.stop()
+        price_vintage = st.selectbox(
+            "Vintage de precio", price_vintages, index=len(price_vintages) - 1
+        )
+        exog_vintage = st.selectbox(
+            f"Vintage de {cfg['exog']}", exog_vintages,
+            index=len(exog_vintages) - 1,
+        )
+        col_a, col_b = st.columns(2)
+        with col_a:
+            range_start = st.date_input("Inicio de datos", date(2000, 1, 1))
+        with col_b:
+            range_end = st.date_input("Fin de datos", date.today())
 
-    price_vintages = vintages.list_vintages(PRICE_INDEX)
-    exog_vintages = vintages.list_vintages(cfg["exog"])
-    if not price_vintages or not exog_vintages:
-        st.error("Faltan vintages de precio o exógena. Ve a la página Datos.")
-        st.stop()
-    price_vintage = st.selectbox(
-        "Vintage de precio", price_vintages, index=len(price_vintages) - 1
-    )
-    exog_vintage = st.selectbox(
-        f"Vintage de {cfg['exog']}", exog_vintages, index=len(exog_vintages) - 1
-    )
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        range_start = st.date_input("Inicio de datos", date(2000, 1, 1))
-    with col_b:
-        range_end = st.date_input("Fin de datos", date.today())
-
-    initial_train = st.number_input("initial_train (meses)", 24, 400, 203)
-    h_min, h_max = st.slider("Horizontes", 1, 12, (1, 6))
-    window = st.radio("Ventana", ["expanding", "rolling"], horizontal=True)
-    refit_every = st.number_input(
-        "refit_every", 1, 12, 1,
-        help="Reentrena cada k orígenes; los intermedios reutilizan parámetros.",
-    )
+    with st.container(border=True):
+        components.control_header("origen móvil", "")
+        initial_train = st.number_input("initial_train (meses)", 24, 400, 203)
+        h_min, h_max = st.slider("Horizontes", 1, 12, (1, 6))
+        window = st.radio("Ventana", ["expanding", "rolling"], horizontal=True)
+        refit_every = st.number_input(
+            "refit_every", 1, 12, 1,
+            help="Reentrena cada k orígenes; los intermedios reutilizan parámetros.",
+        )
 
     run_clicked = st.button("Correr backtest", type="primary")
 
@@ -135,7 +148,7 @@ def _model_factories() -> dict:
 # --- Correr -----------------------------------------------------------------
 if run_clicked:
     if not selected_models:
-        st.error("Selecciona al menos un modelo.")
+        st.error("Selecciona al menos un modelo y vuelve a pulsar Correr backtest.")
         st.stop()
 
     price = vintages.load(PRICE_INDEX, price_vintage)
@@ -149,12 +162,12 @@ if run_clicked:
     if len(y) <= initial_train + max(horizons):
         st.error(
             f"Datos insuficientes: {len(y)} meses para initial_train="
-            f"{initial_train} y horizonte {max(horizons)}."
+            f"{initial_train} y horizonte {max(horizons)}. Reduce initial_train."
         )
         st.stop()
 
     factories = _model_factories()
-    bar = st.progress(0.0, text="Corriendo backtest…")
+    bar = st.progress(0.0, text="Corriendo backtest")
     t0 = time.time()
     frames = []
     for m_idx, key in enumerate(selected_models):
@@ -165,7 +178,7 @@ if run_clicked:
             bar.progress(
                 min(frac, 1.0),
                 text=f"{MODEL_LABELS[_key]} · origen {i}/{total} · "
-                     f"{time.time() - t0:.0f}s",
+                     f"{time.time() - t0:.0f} s",
             )
 
         frames.append(
@@ -176,7 +189,7 @@ if run_clicked:
                 progress=_progress, label=key,
             )
         )
-    bar.progress(1.0, text=f"Terminado en {time.time() - t0:.0f}s")
+    bar.progress(1.0, text=f"Terminado en {time.time() - t0:.0f} s")
     results = pd.concat(frames, ignore_index=True)
 
     # Guardar la corrida: parquet + JSON con la configuración.
@@ -212,7 +225,7 @@ saved_runs = (
     if BACKTESTS_DIR.exists() else []
 )
 if saved_runs and "bt_results" not in st.session_state:
-    st.subheader("Cargar backtest anterior")
+    components.section("Cargar backtest anterior")
     chosen = st.selectbox(
         "Corridas guardadas", saved_runs, format_func=lambda p: p.stem
     )
@@ -227,7 +240,7 @@ if saved_runs and "bt_results" not in st.session_state:
 
 # --- Resultados -------------------------------------------------------------
 if "bt_results" not in st.session_state:
-    st.info("Configura y pulsa **Correr backtest**, o carga una corrida anterior.")
+    st.info("Configura y pulsa Correr backtest, o carga una corrida anterior.")
     st.stop()
 
 results = st.session_state["bt_results"]
@@ -235,27 +248,40 @@ run_config = st.session_state.get("bt_config", {})
 models_present = list(results["model"].unique())
 horizons_present = sorted(results["horizon"].unique())
 
-st.subheader("Métricas por modelo y horizonte")
+components.section("Métricas por modelo y horizonte")
 table = by_horizon(results)
 table["model"] = table["model"].map(lambda m: MODEL_LABELS.get(m, m))
 st.dataframe(
-    table.style.format(
-        {"mae": "{:.1f}", "rmse": "{:.1f}", "mape": "{:.1f}", "smape": "{:.1f}"}
-    ),
+    table,
     hide_index=True,
+    column_config={
+        metric: st.column_config.NumberColumn(metric, format="%.2f")
+        for metric in ("mae", "rmse", "mape", "smape")
+    },
 )
 
 if {"sarimax", "sarimax_roni"} <= set(models_present):
-    st.subheader("Mejora % por incluir RONI (RMSE)")
-    st.caption("Positivo = el SARIMAX con exógena mejora al que no la tiene.")
+    components.section(
+        "Mejora % por incluir RONI (RMSE)",
+        help="Positivo = el SARIMAX con exógena mejora al que no la tiene.",
+    )
     improvement = skill(results, "sarimax_roni", "sarimax")
     st.dataframe(
-        improvement.style.format({"improvement_pct": "{:+.1f} %"}),
+        improvement.style
+        .format({"improvement_pct": "{:+.1f} %"})
+        .map(
+            lambda v: f"color: {PALETTE['nino']}; font-weight: 500" if v > 0
+            else f"color: {PALETTE['nina']}; font-weight: 500",
+            subset=["improvement_pct"],
+        ),
         hide_index=True,
     )
 
-st.subheader("Diebold-Mariano (p-valores, pérdida cuadrática)")
-st.caption("Celdas resaltadas: p < 0.05. stat < 0 = el modelo de la fila pierde menos.")
+components.section(
+    "Diebold-Mariano (p-valores, pérdida cuadrática)",
+    help="Celdas anotadas en oscuro: p < 0.05. stat < 0 = el modelo de la "
+         "fila pierde menos.",
+)
 tabs = st.tabs([f"h = {h}" for h in horizons_present])
 for tab, h in zip(tabs, horizons_present):
     with tab:
@@ -266,26 +292,47 @@ for tab, h in zip(tabs, horizons_present):
             )
             for m in models_present
         }
-        matrix = pd.DataFrame(index=models_present, columns=models_present, dtype=float)
+        labels = [MODEL_LABELS.get(m, m) for m in models_present]
+        z = []
         for m1 in models_present:
+            row = []
             for m2 in models_present:
                 if m1 == m2:
+                    row.append(None)
                     continue
                 joined = pd.concat(
                     [errors[m1].rename("e1"), errors[m2].rename("e2")], axis=1
                 ).dropna()
                 out = diebold_mariano(joined["e1"], joined["e2"], h=int(h))
-                matrix.loc[m1, m2] = out["pvalue"]
-        matrix.index = [MODEL_LABELS.get(m, m) for m in matrix.index]
-        matrix.columns = [MODEL_LABELS.get(m, m) for m in matrix.columns]
-        st.dataframe(
-            matrix.style.format("{:.3f}", na_rep="—").map(
-                lambda v: "background-color: #fde9d7; font-weight: bold"
-                if pd.notna(v) and v < 0.05 else ""
-            )
-        )
+                row.append(out["pvalue"])
+            z.append(row)
 
-st.subheader("Desglose por fase ENSO en el origen")
+        fig = go.Figure(go.Heatmap(
+            z=z, x=labels, y=labels,
+            zmin=0, zmax=1,
+            colorscale=[[0, PALETTE["panel"]], [1, PALETTE["papel"]]],
+            showscale=False, hoverongaps=False,
+        ))
+        for i, m1 in enumerate(labels):
+            for j, _ in enumerate(labels):
+                value = z[i][j]
+                if value is None:
+                    continue
+                fig.add_annotation(
+                    x=j, y=i, text=f"{value:.3f}", showarrow=False,
+                    font=dict(
+                        color=PALETTE["linea"] if value < 0.05
+                        else PALETTE["tinta"],
+                        size=12,
+                    ),
+                )
+        fig.update_layout(
+            height=320, yaxis=dict(autorange="reversed"),
+            xaxis=dict(showgrid=False), margin=dict(t=10, b=10),
+        )
+        st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG)
+
+components.section("Desglose por fase ENSO en el origen")
 exog_name = run_config.get("exog", "roni")
 exog_vintage_saved = run_config.get("vintages", {}).get(exog_name)
 try:
@@ -294,37 +341,61 @@ try:
         date.fromisoformat(exog_vintage_saved) if exog_vintage_saved else None,
     )
     phase_table = by_enso_phase(results, roni_df)
-    phase_table["model"] = phase_table["model"].map(lambda m: MODEL_LABELS.get(m, m))
-    phase_names = {"nino": "El Niño", "nina": "La Niña", "neutral": "Neutral"}
-    phase_table["phase"] = phase_table["phase"].map(lambda p: phase_names.get(p, p))
-    st.dataframe(
-        phase_table.style.format(
-            {"mae": "{:.1f}", "rmse": "{:.1f}", "mape": "{:.1f}", "smape": "{:.1f}"}
-        ),
-        hide_index=True,
-    )
+    phase_cols = st.columns(3)
+    for col, phase in zip(phase_cols, ("nino", "nina", "neutral")):
+        with col:
+            block = phase_table[phase_table["phase"] == phase]
+            n_origins = (
+                int(block["n"].sum() / max(len(block), 1)) if not block.empty else 0
+            )
+            st.markdown(
+                f'<div class="pt-datahead"><span class="pt-name">'
+                f"{PHASE_NAMES[phase]}</span>{components.phase_led(phase)}"
+                f'<span class="pt-stamp">n {n_origins} por horizonte</span></div>',
+                unsafe_allow_html=True,
+            )
+            for model in models_present:
+                rows = block[block["model"] == model]
+                if rows.empty:
+                    continue
+                components.metric_card(
+                    MODEL_LABELS.get(model, model),
+                    f"{rows['rmse'].mean():.1f}",
+                    hint=f"RMSE · MAE {rows['mae'].mean():.1f}",
+                )
+    with st.expander("Tabla completa por fase, modelo y horizonte"):
+        detail = phase_table.copy()
+        detail["model"] = detail["model"].map(lambda m: MODEL_LABELS.get(m, m))
+        detail["phase"] = detail["phase"].map(lambda p: PHASE_NAMES.get(p, p))
+        st.dataframe(
+            detail,
+            hide_index=True,
+            column_config={
+                metric: st.column_config.NumberColumn(metric, format="%.2f")
+                for metric in ("mae", "rmse", "mape", "smape")
+            },
+        )
 except FileNotFoundError:
-    st.warning(f"No hay vintage de {exog_name} para clasificar fases.")
+    st.info(
+        f"No hay vintage de {exog_name} para clasificar fases. "
+        f"Descárgalo en la página Datos."
+    )
 
-st.subheader("Error absoluto en el tiempo")
+components.section("Error absoluto en el tiempo")
 chart_h = st.selectbox("Horizonte", horizons_present)
 fig = go.Figure()
 for m in models_present:
     sub = results[(results["model"] == m) & (results["horizon"] == chart_h)]
     fig.add_trace(go.Scatter(
         x=sub["target_date"], y=(sub["actual"] - sub["forecast"]).abs(),
-        mode="lines", name=MODEL_LABELS.get(m, m),
-        line=dict(color=MODEL_COLORS.get(m, "#8a949e"), width=1.3),
+        mode="lines", name=MODEL_LABELS.get(m, m), line=dict(width=1.3),
     ))
 fig.update_layout(
-    xaxis_title="Fecha objetivo", yaxis_title="|error| (COP/kWh)",
-    hovermode="x unified", height=350,
-    legend=dict(orientation="h", yanchor="bottom", y=1.02),
-    margin=dict(t=30),
+    xaxis_title="Fecha objetivo", yaxis_title="|error| (COP/kWh)", height=350,
 )
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG)
 
-st.subheader("Cobertura de intervalos (nominal 80 %)")
+components.section("Cobertura de intervalos (nominal 80 %)")
 cov = coverage(results)
 cov["model"] = cov["model"].map(lambda m: MODEL_LABELS.get(m, m))
 st.dataframe(

@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# Permite importar ``proteo`` al correr la app desde la raíz del repo.
+# Permite importar ``proteo`` y ``app`` al correr desde la raíz del repo.
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -14,26 +14,23 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from app import components, theme
+from app.theme import PALETTE, PLOTLY_CONFIG
 from proteo.dataset import build_dataset, future_exog, inverse_transform
 from proteo.models.presets import PAPER
 from proteo.models.sarimax import SARIMAXModel
 from proteo.store import vintages
 
-st.set_page_config(page_title="Entrenar · Proteo", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Entrenar · Proteo", layout="wide")
+theme.inject_css()
+theme.plotly_template()
 
 st.title("Entrenar")
-st.caption("SARIMAX sobre el precio mensual, con exógena ENSO opcional.")
-
-# Paleta de la guía de diseño del proyecto (guia_diseno_figuras.md).
-COLOR = {
-    "obs": "#22303f",       # serie observada
-    "sarimax": "#1d4ed8",   # modelo principal
-    "banda": "rgba(29, 78, 216, 0.15)",
-    "asumido": "#c2410c",   # exógena supuesta: requiere atención
-    "eje": "#8a949e",
-    "calida": "#d94a3d",
-    "fria": "#2f6fb0",
-}
+st.markdown(
+    '<p class="pt-help">SARIMAX sobre el precio mensual, con exógena ENSO '
+    "opcional. Mover un control con parámetros ya calculados no reentrena.</p>",
+    unsafe_allow_html=True,
+)
 
 EXOG_OPTIONS = {"ninguna": None, "RONI": "roni", "Niño 3.4": "nino34"}
 PRICE_INDEX = "xm_precio_bolsa"
@@ -97,12 +94,13 @@ def _train(
     }
 
 
-# --- Barra lateral ----------------------------------------------------------
+# --- Barra lateral: panel de instrumento ------------------------------------
 # Defaults de los controles con clave: se fijan una sola vez en session_state
 # y los widgets NO declaran valor propio (evita el conflicto default/estado).
 CONTROL_DEFAULTS = dict(
     p=1, d=1, q=1, P=1, D=0, Q=0,
     exog_label="RONI", lag=2, add_squared=False, target="nivel",
+    h=6, conf=80,
 )
 for key, value in CONTROL_DEFAULTS.items():
     st.session_state.setdefault(key, value)
@@ -121,68 +119,82 @@ def _apply_paper() -> None:
 
 
 with st.sidebar:
-    st.header("Configuración")
+    ss = st.session_state
 
-    price_vintages = vintages.list_vintages(PRICE_INDEX)
-    if not price_vintages:
-        st.error("No hay vintages de precio. Descarga XM en la página Datos.")
-        st.stop()
-    price_vintage = st.selectbox(
-        "Vintage de precio", price_vintages, index=len(price_vintages) - 1,
-        format_func=str,
-    )
-
-    exog_label = st.selectbox("Exógena", list(EXOG_OPTIONS), key="exog_label")
-    exog_index = EXOG_OPTIONS[exog_label]
-
-    exog_vintage = None
-    if exog_index:
-        exog_vintages = vintages.list_vintages(exog_index)
-        if not exog_vintages:
-            st.error(f"No hay vintages de {exog_label}. Descárgala en Datos.")
+    with st.container(border=True):
+        components.control_header("datos", ss["exog_label"])
+        price_vintages = vintages.list_vintages(PRICE_INDEX)
+        if not price_vintages:
+            st.error("No hay vintage de precio todavía. Pulsa Descargar XM en Datos.")
             st.stop()
-        exog_vintage = st.selectbox(
-            f"Vintage de {exog_label}", exog_vintages,
-            index=len(exog_vintages) - 1, format_func=str,
+        price_vintage = st.selectbox(
+            "Vintage de precio", price_vintages,
+            index=len(price_vintages) - 1, format_func=str,
         )
+        exog_label = st.selectbox("Exógena", list(EXOG_OPTIONS), key="exog_label")
+        exog_index = EXOG_OPTIONS[exog_label]
+
+        exog_vintage = None
+        if exog_index:
+            exog_vintages = vintages.list_vintages(exog_index)
+            if not exog_vintages:
+                st.error(
+                    f"No hay vintage de {exog_label} todavía. "
+                    f"Pulsa Descargar {exog_label} en Datos."
+                )
+                st.stop()
+            exog_vintage = st.selectbox(
+                f"Vintage de {exog_label}", exog_vintages,
+                index=len(exog_vintages) - 1, format_func=str,
+            )
+
+        lag = st.slider("Rezago de la exógena", 0, 6, key="lag",
+                        disabled=exog_index is None)
+        add_squared = st.checkbox("Agregar término cuadrático", key="add_squared",
+                                  disabled=exog_index is None)
 
     price_df = _load_vintage(PRICE_INDEX, price_vintage.isoformat())
     last_month = price_df["date"].max().date()
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        train_start = st.date_input(
-            "Inicio", date(2000, 1, 1),
-            min_value=date(2000, 1, 1), max_value=last_month,
+    with st.container(border=True):
+        components.control_header(
+            "entrenamiento", f"2000-01 → {last_month.strftime('%Y-%m')}"
         )
-    with col_b:
-        train_end = st.date_input(
-            "Fin", last_month,
-            min_value=date(2000, 1, 1), max_value=last_month,
+        col_a, col_b = st.columns(2)
+        with col_a:
+            train_start = st.date_input(
+                "Inicio", date(2000, 1, 1),
+                min_value=date(2000, 1, 1), max_value=last_month,
+            )
+        with col_b:
+            train_end = st.date_input(
+                "Fin", last_month,
+                min_value=date(2000, 1, 1), max_value=last_month,
+            )
+        target = st.radio("Objetivo", ["nivel", "log"], horizontal=True,
+                          key="target")
+
+    with st.container(border=True):
+        components.control_header(
+            "orden sarimax",
+            f"({ss['p']},{ss['d']},{ss['q']})({ss['P']},{ss['D']},{ss['Q']})12",
         )
+        c1, c2, c3 = st.columns(3)
+        p = c1.number_input("p", 0, 3, key="p")
+        d = c2.number_input("d", 0, 3, key="d")
+        q = c3.number_input("q", 0, 3, key="q")
+        c4, c5, c6 = st.columns(3)
+        P = c4.number_input("P", 0, 2, key="P")
+        D = c5.number_input("D", 0, 2, key="D")
+        Q = c6.number_input("Q", 0, 2, key="Q")
 
-    target = st.radio("Objetivo", ["nivel", "log"], horizontal=True, key="target")
-
-    lag = st.slider("Rezago de la exógena", 0, 6, key="lag",
-                    disabled=exog_index is None)
-    add_squared = st.checkbox("Agregar término cuadrático", key="add_squared",
-                              disabled=exog_index is None)
-
-    st.markdown("**Orden (p, d, q)**")
-    c1, c2, c3 = st.columns(3)
-    p = c1.number_input("p", 0, 3, key="p")
-    d = c2.number_input("d", 0, 3, key="d")
-    q = c3.number_input("q", 0, 3, key="q")
-
-    st.markdown("**Estacional (P, D, Q), s = 12**")
-    c4, c5, c6 = st.columns(3)
-    P = c4.number_input("P", 0, 2, key="P")
-    D = c5.number_input("D", 0, 2, key="D")
-    Q = c6.number_input("Q", 0, 2, key="Q")
-
-    h = st.slider("Horizonte (meses)", 1, 12, 6)
-    confidence = st.select_slider("Confianza (%)", [80, 90, 95], value=80)
-    alpha = round(1 - confidence / 100, 4)
+    with st.container(border=True):
+        components.control_header(
+            "pronóstico", f"h {ss['h']} · {ss['conf']} %"
+        )
+        h = st.slider("Horizonte (meses)", 1, 12, key="h")
+        confidence = st.select_slider("Confianza (%)", [80, 90, 95], key="conf")
+        alpha = round(1 - confidence / 100, 4)
 
     st.button("Cargar configuración del paper", on_click=_apply_paper)
     train_clicked = st.button("Entrenar", type="primary")
@@ -192,7 +204,7 @@ if train_clicked:
 
 # --- Panel principal --------------------------------------------------------
 if not st.session_state.get("trained"):
-    st.info("Configura el modelo en la barra lateral y pulsa **Entrenar**.")
+    st.info("Configura el modelo en la barra lateral y pulsa Entrenar.")
     st.stop()
 
 log_target = target == "log"
@@ -209,7 +221,10 @@ try:
         order, seasonal_order, int(h), float(alpha),
     )
 except Exception as exc:  # noqa: BLE001 — SARIMAX puede fallar al converger
-    st.error(f"El entrenamiento falló con esta configuración: {exc}")
+    st.error(
+        f"El entrenamiento falló con esta configuración: {exc}. "
+        "Cambia el orden o el rango y vuelve a pulsar Entrenar."
+    )
     st.stop()
 
 y = result["y"]
@@ -218,24 +233,27 @@ summary = result["summary"]
 
 # Métricas de ajuste.
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("AIC", f"{summary['aic']:.1f}")
-m2.metric("BIC", f"{summary['bic']:.1f}")
-m3.metric(
-    "Ljung-Box p (12)", f"{summary['ljung_box_p']:.3f}",
-    help="Si es menor a 0.05 quedan autocorrelaciones sin modelar.",
-)
-m4.metric("n_obs", summary["n_obs"])
+with m1:
+    components.metric_card("AIC", f"{summary['aic']:.1f}")
+with m2:
+    components.metric_card("BIC", f"{summary['bic']:.1f}")
+with m3:
+    components.metric_card(
+        "Ljung-Box (12)", f"{summary['ljung_box_p']:.3f}", hint="p",
+    )
+with m4:
+    components.metric_card("n obs", str(summary["n_obs"]))
 
-# Advertencia de persistencia cuando el horizonte supera el rezago.
+# Persistencia de la exógena: qué pasos son supuestos y por qué.
 if exog_index and h > lag:
-    first_assumed = lag + 1
-    st.warning(
-        f"Los pasos {first_assumed} a {h} usan {exog_label} supuesto por "
-        "persistencia (último valor observado)."
+    st.info(
+        f"Los pasos {lag + 1} a {h} usan {exog_label} supuesto por "
+        "persistencia: el último valor observado se mantiene constante. "
+        f"El {exog_label} futuro no se pronostica en esta versión."
     )
 
-# Tabla de coeficientes con la fila de la exógena resaltada.
-st.subheader("Coeficientes")
+# Tabla de coeficientes: exógena con fondo banda, p < 0.05 en peso 500.
+components.section("Coeficientes")
 coef_df = pd.DataFrame(summary["coefficients"]).T
 coef_df.index.name = "parámetro"
 exog_rows = [
@@ -246,44 +264,50 @@ st.dataframe(
     coef_df.style
     .format({"coef": "{:.4f}", "std_err": "{:.4f}", "pvalue": "{:.2e}"})
     .apply(
-        lambda row: ["background-color: #e8eef4; font-weight: bold"] * len(row)
+        lambda row: [f"background-color: {PALETTE['banda']}"] * len(row)
         if row.name in exog_rows else [""] * len(row),
         axis=1,
+    )
+    .map(
+        lambda v: "font-weight: 500" if isinstance(v, float) and v < 0.05 else "",
+        subset=["pvalue"],
     )
 )
 
 # --- Gráfica principal: observado, ajustado, pronóstico ---------------------
-st.subheader("Ajuste y pronóstico")
+components.section("Ajuste y pronóstico")
 fig = go.Figure()
+if exog_index == "roni" and result["exog_series"] is not None:
+    roni_view = result["exog_series"].loc[y.index.min():y.index.max()]
+    theme.add_enso_bands(fig, roni_view)
 fig.add_trace(go.Scatter(
     x=y.index, y=y.values, mode="lines", name="Observado",
-    line=dict(color=COLOR["obs"], width=1),
+    line=dict(color=PALETTE["linea"], width=1),
 ))
 fitted = result["fitted"]
 fig.add_trace(go.Scatter(
     x=fitted.index, y=fitted.values, mode="lines", name="Ajustado",
-    line=dict(color=COLOR["sarimax"], width=1.2, dash="dot"),
+    line=dict(color=PALETTE["tinta"], width=1.2),
 ))
 fig.add_trace(go.Scatter(
     x=pd.concat([fc["date"], fc["date"][::-1]]),
     y=pd.concat([fc["upper"], fc["lower"][::-1]]),
-    fill="toself", fillcolor=COLOR["banda"], line=dict(width=0),
-    name=f"Intervalo {confidence}%", hoverinfo="skip",
+    fill="toself", fillcolor=PALETTE["banda"], mode="none",
+    name=f"Intervalo {confidence} %", hoverinfo="skip",
 ))
 fig.add_trace(go.Scatter(
     x=fc["date"], y=fc["mean"], mode="lines+markers", name="Pronóstico",
-    line=dict(color=COLOR["sarimax"], width=2.2), marker=dict(size=5),
+    line=dict(color=PALETTE["nino"], width=2.2, dash="dash"),
+    marker=dict(size=5),
 ))
-fig.add_vline(x=y.index[-1], line_dash="dash", line_color=COLOR["eje"])
+fig.add_vline(x=y.index[-1], line_dash="dash", line_color=PALETTE["tinta"])
 fig.update_layout(
     xaxis_title="Fecha", yaxis_title="Precio de bolsa (COP/kWh)",
-    hovermode="x unified",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02),
-    margin=dict(t=30),
+    height=420,
 )
-st.plotly_chart(fig, width="stretch")
+st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG)
 
-# --- Panel de la exógena, con las filas supuestas en otro color -------------
+# --- Panel de la exógena ----------------------------------------------------
 if exog_index:
     exog_future = result["exog_future"]
     exog_col = f"{exog_index}_lag{lag}"
@@ -293,33 +317,38 @@ if exog_index:
     fig2.add_trace(go.Scatter(
         x=observed_x.index, y=observed_x.values, mode="lines",
         name=f"{exog_label} observado",
-        line=dict(color=COLOR["obs"], width=1),
+        line=dict(color=PALETTE["linea"], width=1),
     ))
     real = exog_future[~exog_future["assumed"]]
     sup = exog_future[exog_future["assumed"]]
-    if not real.empty:
+    positive = real[real[exog_col] >= 0]
+    negative = real[real[exog_col] < 0]
+    if not positive.empty:
         fig2.add_trace(go.Scatter(
-            x=real.index, y=real[exog_col], mode="markers",
-            name="Futuro con valor observado",
-            marker=dict(color=COLOR["sarimax"], size=7),
+            x=positive.index, y=positive[exog_col], mode="markers",
+            name="Futuro observado (fase cálida)",
+            marker=dict(color=PALETTE["nino"], size=8),
+        ))
+    if not negative.empty:
+        fig2.add_trace(go.Scatter(
+            x=negative.index, y=negative[exog_col], mode="markers",
+            name="Futuro observado (fase fría)",
+            marker=dict(color=PALETTE["nina"], size=8),
         ))
     if not sup.empty:
         fig2.add_trace(go.Scatter(
             x=sup.index, y=sup[exog_col], mode="markers",
-            name="Futuro supuesto (persistencia)",
-            marker=dict(color=COLOR["asumido"], size=7, symbol="diamond"),
+            name="Supuesto por persistencia",
+            marker=dict(color=PALETTE["tinta"], size=8, symbol="diamond"),
         ))
-    fig2.add_hline(y=0.5, line_dash="dash", line_color=COLOR["calida"])
-    fig2.add_hline(y=-0.5, line_dash="dash", line_color=COLOR["fria"])
+    theme.add_threshold_lines(fig2, yref="y")
     fig2.update_layout(
         xaxis_title="Fecha", yaxis_title=f"{exog_label} (anomalía, °C)",
-        hovermode="x unified", height=300,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        margin=dict(t=30),
+        height=300,
     )
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, width="stretch", config=PLOTLY_CONFIG)
 
-# --- Acciones ---------------------------------------------------------------
+# --- Guardar o exportar -----------------------------------------------------
 col_save, col_csv = st.columns(2)
 
 with col_save:
